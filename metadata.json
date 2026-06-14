@@ -1,0 +1,6 @@
+{
+  "name": "Radios en Vivo",
+  "description": "Una aplicación para sintonizar y escuchar radios en vivo con temporizador de apagado.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
