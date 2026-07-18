@@ -1,5 +1,6 @@
 package com.example.service
 
+import android.app.PendingIntent
 import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -25,8 +26,15 @@ class PlaybackService : MediaSessionService() {
             )
             .build()
 
-        mediaSession = MediaSession.Builder(this, exoPlayer!!)
-            .build()
+        val sessionActivityPendingIntent = packageManager?.getLaunchIntentForPackage(packageName)?.let { sessionIntent ->
+            PendingIntent.getActivity(this, 0, sessionIntent, PendingIntent.FLAG_IMMUTABLE)
+        }
+
+        val builder = MediaSession.Builder(this, exoPlayer!!)
+        if (sessionActivityPendingIntent != null) {
+            builder.setSessionActivity(sessionActivityPendingIntent)
+        }
+        mediaSession = builder.build()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
@@ -42,11 +50,9 @@ class PlaybackService : MediaSessionService() {
         super.onDestroy()
     }
 
-    // Required to prevent the service from being killed immediately if we want it to stay foreground
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaSession?.player
         if (player == null || !player.playWhenReady || player.mediaItemCount == 0) {
-            // Stop service if not playing
             stopSelf()
         }
     }
