@@ -8,9 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: aplicación
 
     steps:
       - uses: actions/checkout@v4
@@ -21,14 +18,29 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Find project directory
+        id: find
+        run: |
+          GRADLEW_PATH=$(find . -maxdepth 2 -name "gradlew" | head -n 1)
+          PROJECT_DIR=$(dirname "$GRADLEW_PATH")
+          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "Encontrado en: $PROJECT_DIR"
+
       - name: Grant execute permission for gradlew
-        run: chmod +x ./gradlew
+        run: chmod +x "${{ steps.find.outputs.dir }}/gradlew"
 
       - name: Build APK
-        run: ./gradlew assembleDebug
+        run: cd "${{ steps.find.outputs.dir }}" && ./gradlew assembleDebug
+
+      - name: Find and upload APK
+        run: |
+          APK_PATH=$(find . -name "app-debug.apk" | head -n 1)
+          echo "APK encontrado en: $APK_PATH"
+          mkdir -p /tmp/output
+          cp "$APK_PATH" /tmp/output/
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
-          path: aplicación/app/build/outputs/apk/debug/app-debug.apk
+          path: /tmp/output/app-debug.apk
