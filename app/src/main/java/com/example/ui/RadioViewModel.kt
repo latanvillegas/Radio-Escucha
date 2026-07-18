@@ -99,31 +99,26 @@ class RadioViewModel(
 
     private fun setupPlayer() {
         try {
+            val audioAttributes = androidx.media3.common.AudioAttributes.Builder()
+                .setUsage(androidx.media3.common.C.USAGE_MEDIA)
+                .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC)
+                .build()
+
             exoPlayer = ExoPlayer.Builder(getApplication()).build().apply {
+                setAudioAttributes(audioAttributes, true)
                 repeatMode = Player.REPEAT_MODE_OFF
                 
                 addListener(object : Player.Listener {
                     override fun onPlaybackStateChanged(state: Int) {
-                        when (state) {
-                            Player.STATE_IDLE -> {
-                                _playbackStatus.value = PlaybackStatus.IDLE
-                            }
-                            Player.STATE_BUFFERING -> {
-                                _playbackStatus.value = PlaybackStatus.BUFFERING
-                            }
-                            Player.STATE_READY -> {
-                                _playbackStatus.value = if (isPlaying) PlaybackStatus.PLAYING else PlaybackStatus.PAUSED
-                            }
-                            Player.STATE_ENDED -> {
-                                _playbackStatus.value = PlaybackStatus.IDLE
-                            }
-                        }
+                        updateStatus()
                     }
 
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        _playbackStatus.value = if (isPlaying) PlaybackStatus.PLAYING else {
-                            if (playbackState == Player.STATE_BUFFERING) PlaybackStatus.BUFFERING else PlaybackStatus.PAUSED
-                        }
+                        updateStatus()
+                    }
+
+                    override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                        updateStatus()
                     }
 
                     override fun onPlayerError(error: PlaybackException) {
@@ -138,6 +133,19 @@ class RadioViewModel(
             }
         } catch (e: Exception) {
             _errorMessage.value = "No se pudo iniciar el reproductor multimedia."
+        }
+    }
+
+    private fun updateStatus() {
+        val player = exoPlayer ?: return
+        val state = player.playbackState
+        val playing = player.isPlaying
+        _playbackStatus.value = when {
+            state == Player.STATE_BUFFERING -> PlaybackStatus.BUFFERING
+            playing -> PlaybackStatus.PLAYING
+            state == Player.STATE_READY -> PlaybackStatus.PAUSED
+            state == Player.STATE_ENDED || state == Player.STATE_IDLE -> PlaybackStatus.IDLE
+            else -> PlaybackStatus.IDLE
         }
     }
 
@@ -234,7 +242,7 @@ class RadioViewModel(
     }
 
     // Database mutation mappings
-    fun addCustomStation(name: String, url: String, genre: String) {
+    fun addCustomStation(name: String, url: String, genre: String, country: String, region: String, province: String, district: String) {
         viewModelScope.launch {
             val formattedGenre = genre.trim().ifEmpty { "Varios" }
             val station = RadioStation(
@@ -242,7 +250,11 @@ class RadioViewModel(
                 url = url.trim(),
                 genre = formattedGenre,
                 isFavorite = false,
-                isCustom = true
+                isCustom = true,
+                country = country.trim(),
+                region = region.trim(),
+                province = province.trim(),
+                district = district.trim()
             )
             repository.insert(station)
         }

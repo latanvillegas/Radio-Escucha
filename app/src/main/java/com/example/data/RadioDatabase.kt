@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [RadioStation::class], version = 1, exportSchema = false)
+@Database(entities = [RadioStation::class], version = 2, exportSchema = false)
 abstract class RadioDatabase : RoomDatabase() {
     abstract fun radioDao(): RadioDao
 

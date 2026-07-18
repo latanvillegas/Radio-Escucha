@@ -5,6 +5,8 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -34,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.RadioStation
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,268 +54,354 @@ fun RadioApp(viewModel: RadioViewModel) {
 
     var showAddDialog by remember { mutableStateOf(false) }
     var showSleepTimerMenu by remember { mutableStateOf(false) }
+    var activeTab by remember { mutableStateOf(0) }
 
     val focusManager = LocalFocusManager.current
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val isTablet = maxWidth >= 600.dp
+
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFD0BCFF).copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Radio,
+                                    contentDescription = null,
+                                    tint = Color(0xFFD0BCFF),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Text(
+                                "OpenRadio",
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    letterSpacing = (-0.5).sp,
+                                    color = Color(0xFFE6E1E5)
+                                )
+                            )
+                        }
+                    },
+                    actions = {
+                        // Sleep Timer Action Button
+                        IconButton(
+                            onClick = { showSleepTimerMenu = true },
+                            modifier = Modifier
+                                .testTag("sleep_timer_top_button")
+                                .minimumInteractiveComponentSize()
+                        ) {
+                            BadgedBox(
+                                badge = {
+                                    if (sleepSecondsLeft != null) {
+                                        Badge(
+                                            containerColor = Color(0xFFD0BCFF),
+                                            contentColor = Color(0xFF381E72)
+                                        ) {
+                                            Text(formatTimeLeft(sleepSecondsLeft), fontSize = 9.sp)
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    if (sleepSecondsLeft != null) Icons.Filled.Timer else Icons.Outlined.Timer,
+                                    contentDescription = "Temporizador de apagado",
+                                    tint = Color(0xFFCAC4D0)
+                                )
+                            }
+                        }
+
+                        // Profile avatar representer from HTML mockup
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .padding(end = 8.dp, start = 4.dp)
+                                .size(32.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFFD0BCFF).copy(alpha = 0.15f)),
+                                .background(Color(0xFF49454F))
+                                .clickable { showAddDialog = true },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                Icons.Default.Radio,
-                                contentDescription = null,
-                                tint = Color(0xFFD0BCFF),
-                                modifier = Modifier.size(20.dp)
+                                Icons.Default.Person,
+                                contentDescription = "Profile",
+                                tint = Color(0xFFCAC4D0).copy(alpha = 0.8f),
+                                modifier = Modifier.size(18.dp)
                             )
                         }
-                        Text(
-                            "OpenRadio",
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Medium,
-                                letterSpacing = (-0.5).sp,
-                                color = Color(0xFFE6E1E5)
-                            )
-                        )
-                    }
-                },
-                actions = {
-                    // Sleep Timer Action Button
-                    IconButton(
-                        onClick = { showSleepTimerMenu = true },
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color(0xFF1C1B1F),
+                        titleContentColor = Color(0xFFE6E1E5)
+                    )
+                )
+            },
+            floatingActionButton = {
+                if (!isTablet) {
+                    FloatingActionButton(
+                        onClick = { showAddDialog = true },
+                        containerColor = Color(0xFFD0BCFF),
+                        contentColor = Color(0xFF381E72),
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier
-                            .testTag("sleep_timer_top_button")
-                            .minimumInteractiveComponentSize()
-                    ) {
-                        BadgedBox(
-                            badge = {
-                                if (sleepSecondsLeft != null) {
-                                    Badge(
-                                        containerColor = Color(0xFFD0BCFF),
-                                        contentColor = Color(0xFF381E72)
-                                    ) {
-                                        Text(formatTimeLeft(sleepSecondsLeft), fontSize = 9.sp)
-                                    }
-                                }
-                            }
-                        ) {
-                            Icon(
-                                if (sleepSecondsLeft != null) Icons.Filled.Timer else Icons.Outlined.Timer,
-                                contentDescription = "Temporizador de apagado",
-                                tint = Color(0xFFCAC4D0)
-                            )
-                        }
-                    }
-
-                    // Profile avatar representer from HTML mockup
-                    Box(
-                        modifier = Modifier
-                            .padding(end = 8.dp, start = 4.dp)
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF49454F))
-                            .clickable { showAddDialog = true },
-                        contentAlignment = Alignment.Center
+                            .testTag("add_radio_fab")
                     ) {
                         Icon(
-                            Icons.Default.Person,
-                            contentDescription = "Profile",
-                            tint = Color(0xFFCAC4D0).copy(alpha = 0.8f),
-                            modifier = Modifier.size(18.dp)
+                            Icons.Default.Add,
+                            contentDescription = "Agregar radio",
+                            modifier = Modifier.size(28.dp)
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF1C1B1F),
-                    titleContentColor = Color(0xFFE6E1E5)
-                )
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDialog = true },
-                containerColor = Color(0xFFD0BCFF),
-                contentColor = Color(0xFF381E72),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .testTag("add_radio_fab")
-            ) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = "Agregar radio",
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-        },
-        bottomBar = {
-            // Elegant M3-style bar conforming to Sophisticated Dark Palette
-            NavigationBar(
-                containerColor = Color(0xFF211F26),
-                tonalElevation = 0.dp,
-                modifier = Modifier
-                    .height(80.dp)
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-            ) {
-                var activeTab by remember { mutableStateOf(0) }
-                val navItems = listOf(
-                    Triple(Icons.Filled.Home, Icons.Outlined.Home, "Home"),
-                    Triple(Icons.Filled.Explore, Icons.Outlined.Explore, "Discover"),
-                    Triple(Icons.Filled.LibraryMusic, Icons.Outlined.LibraryMusic, "Library"),
-                    Triple(Icons.Filled.Sync, Icons.Outlined.Sync, "Sync")
-                )
-                navItems.forEachIndexed { index, item ->
-                    val isSelected = activeTab == index
-                    NavigationBarItem(
-                        selected = isSelected,
-                        onClick = { activeTab = index },
-                        icon = {
-                            Icon(
-                                if (isSelected) item.first else item.second,
-                                contentDescription = item.third,
-                                tint = if (isSelected) Color(0xFF381E72) else Color(0xFFCAC4D0)
-                            )
-                        },
-                        label = {
-                            Text(
-                                item.third,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) Color(0xFFE6E1E5) else Color(0xFFCAC4D0)
+                }
+            },
+            bottomBar = {
+                if (!isTablet) {
+                    // Elegant M3-style bar conforming to Sophisticated Dark Palette
+                    NavigationBar(
+                        containerColor = Color(0xFF211F26),
+                        tonalElevation = 0.dp,
+                        modifier = Modifier
+                            .height(80.dp)
+                            .windowInsetsPadding(WindowInsets.navigationBars)
+                    ) {
+                        val navItems = listOf(
+                            Triple(Icons.Filled.Home, Icons.Outlined.Home, "Inicio"),
+                            Triple(Icons.Filled.Explore, Icons.Outlined.Explore, "Descubrir"),
+                            Triple(Icons.Filled.LibraryMusic, Icons.Outlined.LibraryMusic, "Biblioteca"),
+                            Triple(Icons.Filled.Sync, Icons.Outlined.Sync, "Sincronizar")
+                        )
+                        navItems.forEachIndexed { index, item ->
+                            val isSelected = activeTab == index
+                            NavigationBarItem(
+                                selected = isSelected,
+                                onClick = { activeTab = index },
+                                icon = {
+                                    Icon(
+                                        if (isSelected) item.first else item.second,
+                                        contentDescription = item.third,
+                                        tint = if (isSelected) Color(0xFF381E72) else Color(0xFFCAC4D0)
+                                    )
+                                },
+                                label = {
+                                    Text(
+                                        item.third,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) Color(0xFFE6E1E5) else Color(0xFFCAC4D0)
+                                        )
+                                    )
+                                },
+                                colors = NavigationBarItemDefaults.colors(
+                                    indicatorColor = Color(0xFFE8DEF8)
                                 )
                             )
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = Color(0xFFE8DEF8)
-                        )
-                    )
+                        }
+                    }
                 }
-            }
-        },
-        containerColor = Color(0xFF1C1B1F)
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .background(Color(0xFF1C1B1F))
-        ) {
-            // Main Content Area
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-            ) {
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // 1. PLAYBACK DASHBOARD (Header Player Panel)
-                PlaybackDashboard(
-                    currentStation = currentStation,
-                    playbackStatus = playbackStatus,
-                    volume = volume,
-                    errorMessage = errorMessage,
-                    sleepSecondsLeft = sleepSecondsLeft,
-                    onTogglePlay = { viewModel.togglePlayPause() },
-                    onStopPlayback = { viewModel.stopPlayback() },
-                    onVolumeChange = { viewModel.setVolume(it) },
-                    onCancelSleepTimer = { viewModel.cancelSleepTimer() }
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 2. SEARCH & GENRE FILTER row
-                SearchAndFilterSection(
-                    searchQuery = searchQuery,
-                    onSearchQueryChange = { viewModel.updateSearchQuery(it) },
-                    genres = genresList,
-                    selectedGenre = selectedGenre,
-                    onGenreSelect = { viewModel.updateGenreFilter(it) },
-                    focusManager = focusManager
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 3. LISTENERS / STATIONS LIST TITLE
+            },
+            containerColor = Color(0xFF1C1B1F)
+        ) { innerPadding ->
+            if (isTablet) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .background(Color(0xFF1C1B1F))
                 ) {
-                    Text(
-                        text = "YOUR RADIOS",
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFCAC4D0),
-                            letterSpacing = 1.5.sp
-                        )
-                    )
-
-                    Box(
+                    // Left: Elegant M3 Navigation Rail on Tablet
+                    NavigationRail(
+                        containerColor = Color(0xFF211F26),
                         modifier = Modifier
-                            .background(Color(0xFF313033), shape = RoundedCornerShape(4.dp))
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                            .fillMaxHeight()
+                            .width(80.dp),
+                        header = {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            FloatingActionButton(
+                                onClick = { showAddDialog = true },
+                                containerColor = Color(0xFFD0BCFF),
+                                contentColor = Color(0xFF381E72),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .testTag("add_radio_fab_rail")
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "Agregar radio",
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
                     ) {
-                        Text(
-                            text = "SYNCED WITH GITHUB",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                color = Color(0xFF938F99),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 8.sp,
-                                letterSpacing = 0.5.sp
+                        val navItems = listOf(
+                            Triple(Icons.Filled.Home, Icons.Outlined.Home, "Inicio"),
+                            Triple(Icons.Filled.Explore, Icons.Outlined.Explore, "Descubrir"),
+                            Triple(Icons.Filled.LibraryMusic, Icons.Outlined.LibraryMusic, "Biblioteca"),
+                            Triple(Icons.Filled.Sync, Icons.Outlined.Sync, "Sincronizar")
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        navItems.forEachIndexed { index, item ->
+                            val isSelected = activeTab == index
+                            NavigationRailItem(
+                                selected = isSelected,
+                                onClick = { activeTab = index },
+                                icon = {
+                                    Icon(
+                                        if (isSelected) item.first else item.second,
+                                        contentDescription = item.third,
+                                        tint = if (isSelected) Color(0xFF381E72) else Color(0xFFCAC4D0)
+                                    )
+                                },
+                                label = {
+                                    Text(
+                                        item.third,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) Color(0xFFE6E1E5) else Color(0xFFCAC4D0)
+                                        )
+                                    )
+                                },
+                                colors = NavigationRailItemDefaults.colors(
+                                    indicatorColor = Color(0xFFE8DEF8)
+                                )
                             )
+                        }
+                    }
+
+                    // Right split rows
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 24.dp, vertical = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(24.dp)
+                    ) {
+                        // Left Column: playback player controller
+                        Column(
+                            modifier = Modifier
+                                .weight(0.45f)
+                                .fillMaxHeight(),
+                            verticalArrangement = Arrangement.Top
+                        ) {
+                            PlaybackDashboard(
+                                currentStation = currentStation,
+                                playbackStatus = playbackStatus,
+                                volume = volume,
+                                errorMessage = errorMessage,
+                                sleepSecondsLeft = sleepSecondsLeft,
+                                onTogglePlay = { viewModel.togglePlayPause() },
+                                onStopPlayback = { viewModel.stopPlayback() },
+                                onVolumeChange = { viewModel.setVolume(it) },
+                                onCancelSleepTimer = { viewModel.cancelSleepTimer() }
+                            )
+                        }
+
+                        // Right Column: Search filters and list scroll
+                        Column(
+                            modifier = Modifier
+                                .weight(0.55f)
+                                .fillMaxHeight()
+                        ) {
+                            NavigationTabSwitcher(
+                                activeTab = activeTab,
+                                searchQuery = searchQuery,
+                                onSearchQueryChange = { viewModel.updateSearchQuery(it) },
+                                genresList = genresList,
+                                selectedGenre = selectedGenre,
+                                onGenreSelect = { viewModel.updateGenreFilter(it) },
+                                focusManager = focusManager,
+                                filteredStations = filteredStations,
+                                currentStation = currentStation,
+                                playbackStatus = playbackStatus,
+                                viewModel = viewModel,
+                                onActiveTabChange = { activeTab = it }
+                            )
+                        }
+                    }
+                }
+            } else {
+                // Mobile layout
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .background(Color(0xFF1C1B1F))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // 1. PLAYBACK DASHBOARD (Header Player Panel)
+                        PlaybackDashboard(
+                            currentStation = currentStation,
+                            playbackStatus = playbackStatus,
+                            volume = volume,
+                            errorMessage = errorMessage,
+                            sleepSecondsLeft = sleepSecondsLeft,
+                            onTogglePlay = { viewModel.togglePlayPause() },
+                            onStopPlayback = { viewModel.stopPlayback() },
+                            onVolumeChange = { viewModel.setVolume(it) },
+                            onCancelSleepTimer = { viewModel.cancelSleepTimer() }
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // 2. SEARCH & LIST UI / TABS switch
+                        NavigationTabSwitcher(
+                            activeTab = activeTab,
+                            searchQuery = searchQuery,
+                            onSearchQueryChange = { viewModel.updateSearchQuery(it) },
+                            genresList = genresList,
+                            selectedGenre = selectedGenre,
+                            onGenreSelect = { viewModel.updateGenreFilter(it) },
+                            focusManager = focusManager,
+                            filteredStations = filteredStations,
+                            currentStation = currentStation,
+                            playbackStatus = playbackStatus,
+                            viewModel = viewModel,
+                            onActiveTabChange = { activeTab = it }
                         )
                     }
                 }
+            }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // 4. STATIONS LIST
-                StationsList(
-                    filteredStations = filteredStations,
-                    currentStation = currentStation,
-                    playbackStatus = playbackStatus,
-                    onStationSelect = { viewModel.playStation(it) },
-                    onToggleFavorite = { viewModel.toggleFavorite(it) },
-                    onDeleteStation = { viewModel.deleteStation(it) }
+            // Dialog wrappers
+            if (showAddDialog) {
+                AddStationDialog(
+                    onDismiss = { showAddDialog = false },
+                    onAddStation = { name, url, genre, country, region, province, district ->
+                        viewModel.addCustomStation(name, url, genre, country, region, province, district)
+                        showAddDialog = false
+                    }
                 )
             }
-        }
 
-        // Add Custom Station Dialog Sheet
-        if (showAddDialog) {
-            AddStationDialog(
-                onDismiss = { showAddDialog = false },
-                onAddStation = { name, url, genre ->
-                    viewModel.addCustomStation(name, url, genre)
-                    showAddDialog = false
-                }
-            )
-        }
-
-        // Sleep Timer Action Bottom Sheet / Simple Dialog
-        if (showSleepTimerMenu) {
-            SleepTimerDialog(
-                currentSecondsLeft = sleepSecondsLeft,
-                onDismiss = { showSleepTimerMenu = false },
-                onSelectMinutes = { minutes ->
-                    if (minutes == 0) {
-                        viewModel.cancelSleepTimer()
-                    } else {
-                        viewModel.startSleepTimer(minutes)
+            if (showSleepTimerMenu) {
+                SleepTimerDialog(
+                    currentSecondsLeft = sleepSecondsLeft,
+                    onDismiss = { showSleepTimerMenu = false },
+                    onSelectMinutes = { minutes ->
+                        if (minutes == 0) {
+                            viewModel.cancelSleepTimer()
+                        } else {
+                            viewModel.startSleepTimer(minutes)
+                        }
+                        showSleepTimerMenu = false
                     }
-                    showSleepTimerMenu = false
-                }
-            )
+                )
+            }
         }
     }
 }
@@ -418,7 +507,7 @@ fun PlaybackDashboard(
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            "ON AIR",
+                            "AL AIRE",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 color = Color(0xFF381E72),
                                 fontWeight = FontWeight.Bold,
@@ -539,12 +628,21 @@ fun PlaybackDashboard(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                        val geoParts = listOfNotNull(
+                            currentStation.country.takeIf { it.isNotEmpty() },
+                            currentStation.region.takeIf { it.isNotEmpty() },
+                            currentStation.province.takeIf { it.isNotEmpty() },
+                            currentStation.district.takeIf { it.isNotEmpty() }
+                        ).filter { it.isNotBlank() }
+
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = if (currentStation.isCustom) "Custom Stream Link" else "Original live link",
+                            text = if (geoParts.isNotEmpty()) geoParts.joinToString(" • ") else if (currentStation.isCustom) "Stream personalizado" else "Transmisión en vivo",
                             style = MaterialTheme.typography.bodySmall.copy(
                                 color = Color(0xFFCAC4D0)
-                            )
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -654,39 +752,7 @@ fun PlaybackDashboard(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
 
-                // Volume slider matching the layout
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.VolumeDown,
-                        contentDescription = "Bajar volumen",
-                        tint = Color(0xFFCAC4D0),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Slider(
-                        value = volume,
-                        onValueChange = onVolumeChange,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 8.dp)
-                            .testTag("volume_slider"),
-                        colors = SliderDefaults.colors(
-                            activeTrackColor = Color(0xFFD0BCFF),
-                            inactiveTrackColor = Color(0xFF49454F),
-                            thumbColor = Color(0xFFD0BCFF)
-                        )
-                    )
-                    Icon(
-                        Icons.Default.VolumeUp,
-                        contentDescription = "Subir volumen",
-                        tint = Color(0xFFCAC4D0),
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
             }
         }
     }
@@ -709,7 +775,7 @@ fun SearchAndFilterSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("search_stations_input"),
-            placeholder = { Text("Search stations, moods, genres...", fontSize = 14.sp) },
+            placeholder = { Text("Buscar radios, categorías, géneros...", fontSize = 14.sp) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFFCAC4D0)) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
@@ -876,12 +942,44 @@ fun StationsList(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Text(
-                                text = station.genre,
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    color = Color(0xFFCAC4D0)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = station.genre,
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = Color(0xFFCAC4D0)
+                                    ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
                                 )
-                            )
+                                val geoParts = listOfNotNull(
+                                    station.country.takeIf { it.isNotEmpty() },
+                                    station.region.takeIf { it.isNotEmpty() },
+                                    station.province.takeIf { it.isNotEmpty() },
+                                    station.district.takeIf { it.isNotEmpty() }
+                                ).filter { it.isNotBlank() }
+
+                                if (geoParts.isNotEmpty()) {
+                                    Text(
+                                        text = "•",
+                                        style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFFCAC4D0).copy(alpha = 0.5f))
+                                    )
+                                    Text(
+                                        text = geoParts.joinToString(" / "),
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = Color(0xFFCAC4D0).copy(alpha = 0.7f),
+                                            fontSize = 11.sp
+                                        ),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(2f, fill = false)
+                                    )
+                                }
+                            }
                         }
 
                         // Right action buttons: Heart (Favorite) & Delete (If custom)
@@ -959,21 +1057,16 @@ fun AudioVisualizer(
     barCount: Int = 18,
     color: Color = MaterialTheme.colorScheme.primary
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "visualizer")
-    
-    // We create multiple offset animators to drive each bar
-    val animations = (0 until barCount).map { index ->
-        val duration = remember(index) { (350..750).random() }
-        infiniteTransition.animateFloat(
-            initialValue = 0.1f,
-            targetValue = 1.0f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(duration, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "bar_$index"
-        )
-    }
+    val transition = rememberInfiniteTransition(label = "visualizer")
+    val animationProgress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "progress"
+    )
 
     Canvas(modifier = modifier) {
         val width = size.width
@@ -982,8 +1075,15 @@ fun AudioVisualizer(
         val barWidth = width / totalSpacingUnit
 
         for (i in 0 until barCount) {
-            val progress = if (isPlaying) animations[i].value else 0.08f
-            val barHeight = height * progress
+            val factor = if (isPlaying) {
+                val angle = (animationProgress * 2 * Math.PI) + (i * 1.5)
+                val baseValue = Math.sin(angle) * 0.45 + 0.55
+                val noise = Math.cos(angle * 1.7 + i) * 0.15
+                (baseValue + noise).toFloat().coerceIn(0.1f, 1.0f)
+            } else {
+                0.08f
+            }
+            val barHeight = height * factor
             val x = i * barWidth * 2
             val y = height - barHeight
             
@@ -1000,11 +1100,15 @@ fun AudioVisualizer(
 @Composable
 fun AddStationDialog(
     onDismiss: () -> Unit,
-    onAddStation: (String, String, String) -> Unit
+    onAddStation: (String, String, String, String, String, String, String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
     var genre by remember { mutableStateOf("") }
+    var country by remember { mutableStateOf("") }
+    var region by remember { mutableStateOf("") }
+    var province by remember { mutableStateOf("") }
+    var district by remember { mutableStateOf("") }
 
     var nameError by remember { mutableStateOf(false) }
     var urlError by remember { mutableStateOf(false) }
@@ -1020,7 +1124,8 @@ fun AddStationDialog(
             Column(
                 modifier = Modifier
                     .padding(20.dp)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
@@ -1093,6 +1198,64 @@ fun AddStationDialog(
                         .testTag("add_station_genre_input")
                 )
 
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Country & Region Input Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = country,
+                        onValueChange = { country = it },
+                        label = { Text("País", fontSize = 12.sp) },
+                        placeholder = { Text("ej: Perú") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("add_station_country_input")
+                    )
+                    OutlinedTextField(
+                        value = region,
+                        onValueChange = { region = it },
+                        label = { Text("Región", fontSize = 12.sp) },
+                        placeholder = { Text("ej: Lima") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("add_station_region_input")
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Province & District Input Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = province,
+                        onValueChange = { province = it },
+                        label = { Text("Provincia", fontSize = 12.sp) },
+                        placeholder = { Text("ej: Lima") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("add_station_province_input")
+                    )
+                    OutlinedTextField(
+                        value = district,
+                        onValueChange = { district = it },
+                        label = { Text("Distrito", fontSize = 12.sp) },
+                        placeholder = { Text("ej: Miraflores") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("add_station_district_input")
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Row(
@@ -1120,7 +1283,7 @@ fun AddStationDialog(
                                 hasErr = true
                             }
                             if (!hasErr) {
-                                onAddStation(name, url, genre)
+                                onAddStation(name, url, genre, country, region, province, district)
                             }
                         },
                         modifier = Modifier.testTag("confirm_add_button")
@@ -1214,6 +1377,436 @@ fun SleepTimerDialog(
                     modifier = Modifier.align(Alignment.End)
                 ) {
                     Text("Cerrar")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun NavigationTabSwitcher(
+    activeTab: Int,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    genresList: List<String>,
+    selectedGenre: String,
+    onGenreSelect: (String) -> Unit,
+    focusManager: androidx.compose.ui.focus.FocusManager,
+    filteredStations: List<RadioStation>,
+    currentStation: RadioStation?,
+    playbackStatus: PlaybackStatus,
+    viewModel: RadioViewModel,
+    onActiveTabChange: (Int) -> Unit
+) {
+    when (activeTab) {
+        0 -> {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                SearchAndFilterSection(
+                    searchQuery = searchQuery,
+                    onSearchQueryChange = onSearchQueryChange,
+                    genres = genresList,
+                    selectedGenre = selectedGenre,
+                    onGenreSelect = onGenreSelect,
+                    focusManager = focusManager
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "TUS RADIOS",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFCAC4D0),
+                            letterSpacing = 1.5.sp
+                        )
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                Color(0xFF313033),
+                                shape = RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "SINCRONIZADAS CON GITHUB",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = Color(0xFF938F99),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 8.sp,
+                                letterSpacing = 0.5.sp
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                StationsList(
+                    filteredStations = filteredStations,
+                    currentStation = currentStation,
+                    playbackStatus = playbackStatus,
+                    onStationSelect = { viewModel.playStation(it) },
+                    onToggleFavorite = { viewModel.toggleFavorite(it) },
+                    onDeleteStation = { viewModel.deleteStation(it) }
+                )
+            }
+        }
+        1 -> {
+            DiscoverTab(
+                genres = genresList.filter { it != "Todas" },
+                onGenreSelect = { genre ->
+                    onGenreSelect(genre)
+                    onSearchQueryChange("")
+                    onActiveTabChange(0)
+                },
+                onCountrySelect = { country ->
+                    onSearchQueryChange(country)
+                    onGenreSelect("Todas")
+                    onActiveTabChange(0)
+                }
+            )
+        }
+        2 -> {
+            val favorites = filteredStations.filter { it.isFavorite }
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Favorite,
+                        contentDescription = null,
+                        tint = Color(0xFFF2B8B5),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "MIS FAVORITOS",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFCAC4D0),
+                            letterSpacing = 1.5.sp
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (favorites.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 40.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.FavoriteBorder,
+                                contentDescription = null,
+                                tint = Color(0xFFCAC4D0).copy(alpha = 0.4f),
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                "No tienes favoritos aún",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFFE6E1E5).copy(alpha = 0.7f)
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "Marca el corazón en tus radios para verlas aquí",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = Color(0xFFCAC4D0).copy(alpha = 0.5f)
+                                ),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    StationsList(
+                        filteredStations = favorites,
+                        currentStation = currentStation,
+                        playbackStatus = playbackStatus,
+                        onStationSelect = { viewModel.playStation(it) },
+                        onToggleFavorite = { viewModel.toggleFavorite(it) },
+                        onDeleteStation = { viewModel.deleteStation(it) }
+                    )
+                }
+            }
+        }
+        3 -> {
+            SyncTab()
+        }
+    }
+}
+
+@Composable
+fun DiscoverTab(
+    genres: List<String>,
+    onGenreSelect: (String) -> Unit,
+    onCountrySelect: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = 60.dp)
+    ) {
+        Text(
+            text = "EXPLORAR GÉNEROS",
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFCAC4D0),
+                letterSpacing = 1.5.sp
+            )
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val chunkedGenres = genres.chunked(2)
+            chunkedGenres.forEach { pair ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    pair.forEach { genre ->
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(56.dp)
+                                .clickable { onGenreSelect(genre) }
+                                .testTag("discover_genre_$genre"),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFF2B2930).copy(alpha = 0.5f)
+                            )
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.MusicNote,
+                                        contentDescription = null,
+                                        tint = Color(0xFFD0BCFF),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = genre,
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = Color(0xFFE6E1E5),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (pair.size < 2) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "EXPLORAR POR PAÍS / CONTINENTE",
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFCAC4D0),
+                letterSpacing = 1.5.sp
+            )
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        val countries = listOf(
+            "Perú", "Argentina", "Venezuela", "Colombia", "Chile", "Bolivia", "España", "México", "Honduras"
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            countries.chunked(3).forEach { triple ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    triple.forEach { country ->
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .clickable { onCountrySelect(country) }
+                                .testTag("discover_country_$country"),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFF211F26)
+                            )
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = country,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                    color = Color(0xFFCAC4D0)
+                                )
+                            }
+                        }
+                    }
+                    repeat(3 - triple.size) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SyncTab() {
+    var isSyncing by remember { mutableStateOf(false) }
+    var syncSuccess by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isSyncing) {
+        if (isSyncing) {
+            delay(1500)
+            isSyncing = false
+            syncSuccess = true
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = 60.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF2B2930).copy(alpha = 0.4f)
+            ),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF49454F).copy(alpha = 0.3f))
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFD0BCFF).copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Sync,
+                        contentDescription = null,
+                        tint = Color(0xFFD0BCFF),
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Sincronización con GitHub",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = Color.White
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "Conecta y sincroniza tus estaciones personalizadas, tus favoritos y el historial de reproducción de manera segura en tu cuenta de GitHub.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFFCAC4D0),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Color(0xFF49454F).copy(alpha = 0.5f))
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Estado", color = Color(0xFFCAC4D0), fontSize = 14.sp)
+                    Text("Conectado (Mock)", color = Color.Green, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Último respaldo", color = Color(0xFFCAC4D0), fontSize = 14.sp)
+                    Text(if (syncSuccess) "Hace unos segundos" else "Hace 2 horas", color = Color(0xFFE6E1E5), fontSize = 14.sp)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Repositorio", color = Color(0xFFCAC4D0), fontSize = 14.sp)
+                    Text("usuario/openradio-backup", color = Color(0xFFD0BCFF), fontSize = 14.sp)
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                if (isSyncing) {
+                    CircularProgressIndicator(
+                        color = Color(0xFFD0BCFF),
+                        modifier = Modifier.size(32.dp)
+                    )
+                } else {
+                    Button(
+                        onClick = { isSyncing = true },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFD0BCFF),
+                            contentColor = Color(0xFF381E72)
+                        ),
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        Icon(Icons.Default.Sync, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Sincronizar Ahora", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (syncSuccess && !isSyncing) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "¡Sincronización exitosa!",
+                        color = Color.Green,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                    )
                 }
             }
         }

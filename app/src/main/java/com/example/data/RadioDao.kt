@@ -22,4 +22,7 @@ interface RadioDao {
 
     @Query("DELETE FROM radio_stations WHERE id = :id")
     suspend fun deleteStationById(id: Int)
+
+    @Query("DELETE FROM radio_stations WHERE isCustom = 0")
+    suspend fun deleteDefaultStations()
 }

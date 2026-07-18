@@ -10,5 +10,9 @@ data class RadioStation(
     val url: String,
     val genre: String = "Varios",
     val isFavorite: Boolean = false,
-    val isCustom: Boolean = false
+    val isCustom: Boolean = false,
+    val country: String = "",
+    val region: String = "",
+    val province: String = "",
+    val district: String = ""
 )
