@@ -11,7 +11,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
+
 import com.example.data.AppTheme
+import com.example.data.AppFontSize
+import com.example.data.AppIconSize
+
+val LocalIconScale = staticCompositionLocalOf { 1.0f }
 
 private val CosmicoColorScheme = darkColorScheme(
     primary = CosmicoPrimary,
@@ -83,6 +93,8 @@ private val LightColorScheme =
 @Composable
 fun MyApplicationTheme(
   appTheme: AppTheme = AppTheme.COSMICO,
+  appFontSize: AppFontSize = AppFontSize.NORMAL,
+  appIconSize: AppIconSize = AppIconSize.NORMAL,
   darkTheme: Boolean = true,
   dynamicColor: Boolean = false,
   content: @Composable () -> Unit,
@@ -94,5 +106,40 @@ fun MyApplicationTheme(
       AppTheme.AMBAR_CALIDO -> WarmAmberColorScheme
   }
 
-  MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+  val scaledTypography = scaleTypography(Typography, appFontSize.scale)
+
+  CompositionLocalProvider(LocalIconScale provides appIconSize.scale) {
+    MaterialTheme(
+        colorScheme = colorScheme,
+        typography = scaledTypography,
+        content = content
+    )
+  }
+}
+
+private fun scaleTypography(typography: Typography, scale: Float): Typography {
+    return Typography(
+        displayLarge = typography.displayLarge.scale(scale),
+        displayMedium = typography.displayMedium.scale(scale),
+        displaySmall = typography.displaySmall.scale(scale),
+        headlineLarge = typography.headlineLarge.scale(scale),
+        headlineMedium = typography.headlineMedium.scale(scale),
+        headlineSmall = typography.headlineSmall.scale(scale),
+        titleLarge = typography.titleLarge.scale(scale),
+        titleMedium = typography.titleMedium.scale(scale),
+        titleSmall = typography.titleSmall.scale(scale),
+        bodyLarge = typography.bodyLarge.scale(scale),
+        bodyMedium = typography.bodyMedium.scale(scale),
+        bodySmall = typography.bodySmall.scale(scale),
+        labelLarge = typography.labelLarge.scale(scale),
+        labelMedium = typography.labelMedium.scale(scale),
+        labelSmall = typography.labelSmall.scale(scale)
+    )
+}
+
+private fun TextStyle.scale(scale: Float): TextStyle {
+    return this.copy(
+        fontSize = this.fontSize * scale,
+        lineHeight = this.lineHeight * scale
+    )
 }

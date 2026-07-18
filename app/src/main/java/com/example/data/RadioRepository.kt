@@ -3,9 +3,13 @@ package com.example.data
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 
-class RadioRepository(private val radioDao: RadioDao) {
+class RadioRepository(
+    private val radioDao: RadioDao,
+    private val playbackHistoryDao: PlaybackHistoryDao
+) {
 
     val allStations: Flow<List<RadioStation>> = radioDao.getAllStations()
+    val recentHistory: Flow<List<PlaybackHistory>> = playbackHistoryDao.getRecentHistory()
 
     suspend fun insert(station: RadioStation): Long {
         return radioDao.insertStation(station)
@@ -21,6 +25,24 @@ class RadioRepository(private val radioDao: RadioDao) {
 
     suspend fun deleteById(id: Int) {
         radioDao.deleteStationById(id)
+    }
+
+    suspend fun getStationById(id: Long): RadioStation? {
+        return radioDao.getStationById(id)
+    }
+
+    suspend fun insertHistory(station: RadioStation) {
+        playbackHistoryDao.insertHistoryEntry(
+            PlaybackHistory(
+                stationId = station.id.toLong(),
+                stationName = station.name,
+                stationGenre = station.genre
+            )
+        )
+    }
+
+    suspend fun clearHistory() {
+        playbackHistoryDao.clearHistory()
     }
 
     suspend fun checkAndPrepopulate() {

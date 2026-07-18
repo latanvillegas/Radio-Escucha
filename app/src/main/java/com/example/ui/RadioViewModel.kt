@@ -16,6 +16,9 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.example.service.PlaybackService
 import com.example.data.RadioRepository
 import com.example.data.RadioStation
+import com.example.data.PlaybackHistory
+import com.example.util.ConnectivityObserver
+import com.example.util.NetworkConnectivityObserver
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -29,6 +32,14 @@ class RadioViewModel(
     application: Application,
     private val repository: RadioRepository
 ) : AndroidViewModel(application) {
+
+    private val connectivityObserver = NetworkConnectivityObserver(application)
+    val networkStatus = connectivityObserver.observe()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = ConnectivityObserver.Status.Unavailable
+        )
 
     
     private var controllerFuture: ListenableFuture<MediaController>? = null
@@ -50,6 +61,13 @@ class RadioViewModel(
 
     // Database Stations
     val stations: StateFlow<List<RadioStation>> = repository.allStations
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val recentHistory: StateFlow<List<PlaybackHistory>> = repository.recentHistory
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -155,6 +173,10 @@ class RadioViewModel(
         _currentStation.value = station
         _playbackStatus.value = PlaybackStatus.BUFFERING
         
+        viewModelScope.launch {
+            repository.insertHistory(station)
+        }
+
         mediaController?.let { player ->
             try {
                 player.stop()
@@ -299,6 +321,12 @@ class RadioViewModel(
                 }
                 repository.delete(station)
             }
+        }
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch {
+            repository.clearHistory()
         }
     }
 

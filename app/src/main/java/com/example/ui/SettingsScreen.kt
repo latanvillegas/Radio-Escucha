@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.example.data.AppTheme
+import com.example.data.AppFontSize
+import com.example.data.AppIconSize
 import com.example.BuildConfig
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,6 +34,8 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     val currentTheme by viewModel.appTheme.collectAsState()
+    val fontSize by viewModel.appFontSize.collectAsState()
+    val iconSize by viewModel.appIconSize.collectAsState()
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
@@ -74,8 +78,8 @@ fun SettingsScreen(
             SettingsSection(title = "Tema de la App") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     AppTheme.values().forEach { theme ->
-                        ThemeOption(
-                            theme = theme,
+                        SelectionOption(
+                            title = theme.displayName,
                             isSelected = currentTheme == theme,
                             onClick = { viewModel.setTheme(theme) }
                         )
@@ -83,8 +87,48 @@ fun SettingsScreen(
                 }
             }
 
+            // Accessibility
+            SettingsSection(title = "Accesibilidad") {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "Tamaño de Letra",
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            AppFontSize.values().forEach { size ->
+                                CompactSelectionOption(
+                                    title = size.displayName,
+                                    isSelected = fontSize == size,
+                                    onClick = { viewModel.setFontSize(size) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "Tamaño de Íconos",
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            AppIconSize.values().forEach { size ->
+                                CompactSelectionOption(
+                                    title = size.displayName,
+                                    isSelected = iconSize == size,
+                                    onClick = { viewModel.setIconSize(size) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // Data Management
             SettingsSection(title = "Gestión de Datos") {
+
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     SettingsActionItem(
                         icon = Icons.Default.FileUpload,
@@ -147,8 +191,8 @@ fun SettingsSection(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-fun ThemeOption(
-    theme: AppTheme,
+fun SelectionOption(
+    title: String,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
@@ -167,7 +211,7 @@ fun ThemeOption(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = theme.displayName,
+                text = title,
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                     color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
@@ -181,6 +225,35 @@ fun ThemeOption(
                     modifier = Modifier.size(20.dp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun CompactSelectionOption(
+    title: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+    ) {
+        Box(
+            modifier = Modifier.padding(vertical = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp
+                )
+            )
         }
     }
 }

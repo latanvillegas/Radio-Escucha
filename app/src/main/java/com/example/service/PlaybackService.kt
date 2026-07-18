@@ -4,17 +4,39 @@ import android.app.PendingIntent
 import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
+import androidx.media3.session.*
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
+import android.os.Bundle
+import com.example.data.RadioDatabase
+import com.example.data.RadioRepository
+import com.example.data.RadioStation
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.guava.future
+import com.example.R
+import com.google.common.collect.ImmutableList
 
-class PlaybackService : MediaSessionService() {
+class PlaybackService : MediaLibraryService() {
 
-    private var mediaSession: MediaSession? = null
+    private var mediaLibrarySession: MediaLibrarySession? = null
     private var exoPlayer: ExoPlayer? = null
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private lateinit var repository: RadioRepository
+
+    private val CUSTOM_COMMAND_FAVORITE = "ACTION_FAVORITE"
+    private val ROOT_ID = "ROOT"
 
     override fun onCreate() {
         super.onCreate()
+        val database = RadioDatabase.getDatabase(this)
+        repository = RadioRepository(database.radioDao(), database.playbackHistoryDao())
 
         exoPlayer = ExoPlayer.Builder(this)
             .setAudioAttributes(
@@ -30,28 +52,131 @@ class PlaybackService : MediaSessionService() {
             PendingIntent.getActivity(this, 0, sessionIntent, PendingIntent.FLAG_IMMUTABLE)
         }
 
-        val builder = MediaSession.Builder(this, exoPlayer!!)
+        val favoriteCommand = SessionCommand(CUSTOM_COMMAND_FAVORITE, Bundle.EMPTY)
+        val favoriteButton = CommandButton.Builder()
+            .setSessionCommand(favoriteCommand)
+            .setDisplayName("Favorito")
+            .setIconResId(android.R.drawable.btn_star) // Simple star icon
+            .build()
+
+        val callback = object : MediaLibrarySession.Callback {
+            override fun onConnect(
+                session: MediaSession,
+                controller: MediaSession.ControllerInfo
+            ): MediaSession.ConnectionResult {
+                val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
+                    .add(favoriteCommand)
+                    .build()
+                return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                    .setAvailableSessionCommands(sessionCommands)
+                    .setCustomLayout(listOf(favoriteButton))
+                    .build()
+            }
+
+            override fun onCustomCommand(
+                session: MediaSession,
+                controller: MediaSession.ControllerInfo,
+                customCommand: SessionCommand,
+                args: Bundle
+            ): ListenableFuture<SessionResult> {
+                if (customCommand.customAction == CUSTOM_COMMAND_FAVORITE) {
+                    toggleFavorite()
+                    return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                }
+                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED))
+            }
+
+            override fun onGetLibraryRoot(
+                session: MediaLibrarySession,
+                browser: MediaSession.ControllerInfo,
+                params: LibraryParams?
+            ): ListenableFuture<LibraryResult<MediaItem>> {
+                val rootMetadata = MediaMetadata.Builder()
+                    .setIsBrowsable(true)
+                    .setIsPlayable(false)
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_FOLDER_MIXED)
+                    .setTitle("Radios")
+                    .build()
+                val rootItem = MediaItem.Builder()
+                    .setMediaId(ROOT_ID)
+                    .setMediaMetadata(rootMetadata)
+                    .build()
+                return Futures.immediateFuture(LibraryResult.ofItem(rootItem, params))
+            }
+
+            override fun onGetChildren(
+                session: MediaLibrarySession,
+                browser: MediaSession.ControllerInfo,
+                parentId: String,
+                page: Int,
+                pageSize: Int,
+                params: LibraryParams?
+            ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
+                return serviceScope.future {
+                    if (parentId == ROOT_ID) {
+                        val stations = repository.allStations.first()
+                        val mediaItems = stations.map { mapStationToMediaItem(it) }
+                        LibraryResult.ofItemList(ImmutableList.copyOf(mediaItems), params)
+                    } else {
+                        LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE)
+                    }
+                }
+            }
+        }
+
+        val builder = MediaLibrarySession.Builder(this, exoPlayer!!, callback)
+            
         if (sessionActivityPendingIntent != null) {
             builder.setSessionActivity(sessionActivityPendingIntent)
         }
-        mediaSession = builder.build()
+        mediaLibrarySession = builder.build()
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
-        return mediaSession
+    private fun mapStationToMediaItem(station: RadioStation): MediaItem {
+        val metadata = MediaMetadata.Builder()
+            .setTitle(station.name)
+            .setSubtitle(station.genre)
+            .setArtist(station.genre)
+            .setAlbumTitle("Radios en Vivo")
+            .setIsPlayable(true)
+            .setIsBrowsable(false)
+            .setMediaType(MediaMetadata.MEDIA_TYPE_RADIO_STATION)
+            .build()
+        
+        return MediaItem.Builder()
+            .setMediaId(station.id.toString())
+            .setUri(station.url)
+            .setMediaMetadata(metadata)
+            .build()
+    }
+
+    private fun toggleFavorite() {
+        val currentMediaItem = exoPlayer?.currentMediaItem ?: return
+        val stationId = currentMediaItem.mediaId.toLongOrNull() ?: return
+        
+        serviceScope.launch {
+            val station = repository.getStationById(stationId)
+            if (station != null) {
+                repository.update(station.copy(isFavorite = !station.isFavorite))
+            }
+        }
+    }
+
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? {
+        return mediaLibrarySession
     }
 
     override fun onDestroy() {
-        mediaSession?.run {
+        mediaLibrarySession?.run {
             player.release()
             release()
-            mediaSession = null
+            mediaLibrarySession = null
         }
         super.onDestroy()
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        val player = mediaSession?.player
+        val player = mediaLibrarySession?.player
         if (player == null || !player.playWhenReady || player.mediaItemCount == 0) {
             stopSelf()
         }

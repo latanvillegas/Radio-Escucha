@@ -38,15 +38,21 @@ class MainActivity : ComponentActivity() {
         
         // Instantiate SQLite persistence using singletons or standard builder patterns
         val database = RadioDatabase.getDatabase(applicationContext)
-        val repository = RadioRepository(database.radioDao())
+        val repository = RadioRepository(database.radioDao(), database.playbackHistoryDao())
         val radioFactory = RadioViewModelFactory(application, repository)
         val settingsFactory = SettingsViewModelFactory(application, repository)
         
         setContent {
             val settingsViewModel: SettingsViewModel = viewModel(factory = settingsFactory)
             val appTheme by settingsViewModel.appTheme.collectAsState()
+            val appFontSize by settingsViewModel.appFontSize.collectAsState()
+            val appIconSize by settingsViewModel.appIconSize.collectAsState()
             
-            MyApplicationTheme(appTheme = appTheme) {
+            MyApplicationTheme(
+                appTheme = appTheme,
+                appFontSize = appFontSize,
+                appIconSize = appIconSize
+            ) {
                 val navController = rememberNavController()
                 
                 NavHost(navController = navController, startDestination = "home") {

@@ -5,6 +5,8 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.AppFontSize
+import com.example.data.AppIconSize
 import com.example.data.AppTheme
 import com.example.data.RadioRepository
 import com.example.data.RadioStation
@@ -33,6 +35,20 @@ class SettingsViewModel(
             initialValue = AppTheme.COSMICO
         )
 
+    val appFontSize: StateFlow<AppFontSize> = themePreferences.fontSizeFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = AppFontSize.NORMAL
+        )
+
+    val appIconSize: StateFlow<AppIconSize> = themePreferences.iconSizeFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = AppIconSize.NORMAL
+        )
+
     private val moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
         .build()
@@ -42,6 +58,18 @@ class SettingsViewModel(
     fun setTheme(theme: AppTheme) {
         viewModelScope.launch {
             themePreferences.setTheme(theme)
+        }
+    }
+
+    fun setFontSize(fontSize: AppFontSize) {
+        viewModelScope.launch {
+            themePreferences.setFontSize(fontSize)
+        }
+    }
+
+    fun setIconSize(iconSize: AppIconSize) {
+        viewModelScope.launch {
+            themePreferences.setIconSize(iconSize)
         }
     }
 

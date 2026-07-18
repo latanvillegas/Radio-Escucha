@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.RadioStation
+import com.example.ui.theme.LocalIconScale
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,16 +45,30 @@ fun RadioApp(
     viewModel: RadioViewModel,
     onNavigateToSettings: () -> Unit
 ) {
+    val iconScale = LocalIconScale.current
     val currentStation by viewModel.currentStation.collectAsStateWithLifecycle()
     val playbackStatus by viewModel.playbackStatus.collectAsStateWithLifecycle()
     val volume by viewModel.volume.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val sleepSecondsLeft by viewModel.sleepSecondsLeft.collectAsStateWithLifecycle()
+    val networkStatus by viewModel.networkStatus.collectAsStateWithLifecycle()
 
     val filteredStations by viewModel.filteredStations.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val selectedGenre by viewModel.selectedGenre.collectAsStateWithLifecycle()
     val genresList by viewModel.genresList.collectAsStateWithLifecycle()
+    val recentHistory by viewModel.recentHistory.collectAsStateWithLifecycle()
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    val shareStation: (RadioStation) -> Unit = { station ->
+        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(android.content.Intent.EXTRA_SUBJECT, "Escuchando ${station.name}")
+            putExtra(android.content.Intent.EXTRA_TEXT, "¡Hola! Estoy escuchando ${station.name} (${station.genre}) en la app Radio App. Sintonízala aquí: ${station.url}")
+        }
+        context.startActivity(android.content.Intent.createChooser(intent, "Compartir Radio"))
+    }
 
     var showAddDialog by remember { mutableStateOf(false) }
     var showSleepTimerMenu by remember { mutableStateOf(false) }
@@ -83,7 +98,7 @@ fun RadioApp(
                                     Icons.Default.Radio,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(20.dp * iconScale)
                                 )
                             }
                             Text(
@@ -138,7 +153,7 @@ fun RadioApp(
                                 Icons.Default.Person,
                                 contentDescription = "Ajustes",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(18.dp * iconScale)
                             )
                         }
                     },
@@ -161,7 +176,7 @@ fun RadioApp(
                         Icon(
                             Icons.Default.Add,
                             contentDescription = "Agregar radio",
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(28.dp * iconScale)
                         )
                     }
                 }
@@ -191,7 +206,8 @@ fun RadioApp(
                                     Icon(
                                         if (isSelected) item.first else item.second,
                                         contentDescription = item.third,
-                                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(24.dp * iconScale)
                                     )
                                 },
                                 label = {
@@ -261,7 +277,8 @@ fun RadioApp(
                                     Icon(
                                         if (isSelected) item.first else item.second,
                                         contentDescription = item.third,
-                                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(24.dp * iconScale)
                                     )
                                 },
                                 label = {
@@ -300,10 +317,12 @@ fun RadioApp(
                                 volume = volume,
                                 errorMessage = errorMessage,
                                 sleepSecondsLeft = sleepSecondsLeft,
+                                networkStatus = networkStatus,
                                 onTogglePlay = { viewModel.togglePlayPause() },
                                 onStopPlayback = { viewModel.stopPlayback() },
                                 onVolumeChange = { viewModel.setVolume(it) },
-                                onCancelSleepTimer = { viewModel.cancelSleepTimer() }
+                                onCancelSleepTimer = { viewModel.cancelSleepTimer() },
+                                onShare = shareStation
                             )
                         }
 
@@ -322,10 +341,12 @@ fun RadioApp(
                                 onGenreSelect = { viewModel.updateGenreFilter(it) },
                                 focusManager = focusManager,
                                 filteredStations = filteredStations,
+                                recentHistory = recentHistory,
                                 currentStation = currentStation,
                                 playbackStatus = playbackStatus,
                                 viewModel = viewModel,
-                                onActiveTabChange = { activeTab = it }
+                                onActiveTabChange = { activeTab = it },
+                                onShare = shareStation
                             )
                         }
                     }
@@ -345,7 +366,7 @@ fun RadioApp(
                             .padding(horizontal = 16.dp)
                     ) {
                         Spacer(modifier = Modifier.height(8.dp))
-
+ 
                         // 1. PLAYBACK DASHBOARD (Header Player Panel)
                         PlaybackDashboard(
                             currentStation = currentStation,
@@ -353,14 +374,16 @@ fun RadioApp(
                             volume = volume,
                             errorMessage = errorMessage,
                             sleepSecondsLeft = sleepSecondsLeft,
+                            networkStatus = networkStatus,
                             onTogglePlay = { viewModel.togglePlayPause() },
                             onStopPlayback = { viewModel.stopPlayback() },
                             onVolumeChange = { viewModel.setVolume(it) },
-                            onCancelSleepTimer = { viewModel.cancelSleepTimer() }
+                            onCancelSleepTimer = { viewModel.cancelSleepTimer() },
+                            onShare = shareStation
                         )
-
+ 
                         Spacer(modifier = Modifier.height(16.dp))
-
+ 
                         // 2. SEARCH & LIST UI / TABS switch
                         NavigationTabSwitcher(
                             activeTab = activeTab,
@@ -371,10 +394,12 @@ fun RadioApp(
                             onGenreSelect = { viewModel.updateGenreFilter(it) },
                             focusManager = focusManager,
                             filteredStations = filteredStations,
+                            recentHistory = recentHistory,
                             currentStation = currentStation,
                             playbackStatus = playbackStatus,
                             viewModel = viewModel,
-                            onActiveTabChange = { activeTab = it }
+                            onActiveTabChange = { activeTab = it },
+                            onShare = shareStation
                         )
                     }
                 }
@@ -416,11 +441,14 @@ fun PlaybackDashboard(
     volume: Float,
     errorMessage: String?,
     sleepSecondsLeft: Int?,
+    networkStatus: com.example.util.ConnectivityObserver.Status,
     onTogglePlay: () -> Unit,
     onStopPlayback: () -> Unit,
     onVolumeChange: (Float) -> Unit,
-    onCancelSleepTimer: () -> Unit
+    onCancelSleepTimer: () -> Unit,
+    onShare: (RadioStation) -> Unit
 ) {
+    val iconScale = LocalIconScale.current
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -519,6 +547,34 @@ fun PlaybackDashboard(
                         )
                     }
 
+                    // Connection Status Indicator
+                    if (networkStatus == com.example.util.ConnectivityObserver.Status.MobileData) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .background(
+                                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.SignalCellularAlt,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "DATOS",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            )
+                        }
+                    }
+
                     // Sleep indicator inside card if set
                     if (sleepSecondsLeft != null) {
                         Row(
@@ -555,18 +611,36 @@ fun PlaybackDashboard(
                         }
                     }
 
-                    // Stop button
-                    IconButton(
-                        onClick = onStopPlayback,
-                        modifier = Modifier
-                            .testTag("stop_playback_button")
-                            .minimumInteractiveComponentSize()
-                    ) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = "Detener",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    // Actions group: Share & Stop
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Share button
+                        IconButton(
+                            onClick = { currentStation?.let { onShare(it) } },
+                            modifier = Modifier
+                                .testTag("share_active_button")
+                                .minimumInteractiveComponentSize()
+                        ) {
+                            Icon(
+                                Icons.Default.Share,
+                                contentDescription = "Compartir",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                modifier = Modifier.size(20.dp * iconScale)
+                            )
+                        }
+
+                        // Stop button
+                        IconButton(
+                            onClick = onStopPlayback,
+                            modifier = Modifier
+                                .testTag("stop_playback_button")
+                                .minimumInteractiveComponentSize()
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Detener",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
 
@@ -689,7 +763,7 @@ fun PlaybackDashboard(
                             Icons.Default.SkipPrevious,
                             contentDescription = "Anterior",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(28.dp).clickable { /* Placeholder navigation */ }
+                            modifier = Modifier.size(28.dp * iconScale).clickable { /* Placeholder navigation */ }
                         )
 
                         when (playbackStatus) {
@@ -721,7 +795,7 @@ fun PlaybackDashboard(
                                         if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                                         contentDescription = if (isPlaying) "Pausar" else "Reproducir",
                                         tint = MaterialTheme.colorScheme.onPrimary,
-                                        modifier = Modifier.size(28.dp)
+                                        modifier = Modifier.size(28.dp * iconScale)
                                     )
                                 }
                             }
@@ -731,7 +805,7 @@ fun PlaybackDashboard(
                             Icons.Default.SkipNext,
                             contentDescription = "Siguiente",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(28.dp).clickable { /* Placeholder navigation */ }
+                            modifier = Modifier.size(28.dp * iconScale).clickable { /* Placeholder navigation */ }
                         )
                     }
 
@@ -839,13 +913,173 @@ fun SearchAndFilterSection(
 }
 
 @Composable
+fun StationItem(
+    station: RadioStation,
+    isPlaying: Boolean,
+    isBuffering: Boolean,
+    onSelect: (RadioStation) -> Unit,
+    onToggleFavorite: (RadioStation) -> Unit,
+    onDelete: (RadioStation) -> Unit,
+    onShare: (RadioStation) -> Unit
+) {
+    val iconScale = LocalIconScale.current
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onSelect(station) }
+            .testTag("station_card_${station.id}"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isPlaying) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        ),
+        border = if (isPlaying) {
+            androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+        } else null
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Radio circle thumbnail representing HTML mockup avatar
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        if (isPlaying) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isPlaying && !isBuffering) {
+                    // Mini jumping equalizer
+                    MiniVisualizer(color = MaterialTheme.colorScheme.primary)
+                } else if (isBuffering) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Text core infos
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = station.name,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = station.genre,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    val geoParts = listOfNotNull(
+                        station.country.takeIf { it.isNotEmpty() },
+                        station.region.takeIf { it.isNotEmpty() },
+                        station.province.takeIf { it.isNotEmpty() },
+                        station.district.takeIf { it.isNotEmpty() }
+                    ).filter { it.isNotBlank() }
+
+                    if (geoParts.isNotEmpty()) {
+                        Text(
+                            text = "•",
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                        )
+                        Text(
+                            text = geoParts.joinToString(" / "),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                fontSize = 11.sp
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(2f, fill = false)
+                        )
+                    }
+                }
+            }
+
+            // Right action buttons: Share, Heart (Favorite) & Delete (If custom)
+            IconButton(
+                onClick = { onShare(station) },
+                modifier = Modifier
+                    .testTag("share_button_${station.id}")
+                    .minimumInteractiveComponentSize()
+            ) {
+                Icon(
+                    Icons.Default.Share,
+                    contentDescription = "Compartir radio",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.size(22.dp * iconScale)
+                )
+            }
+
+            IconButton(
+                onClick = { onToggleFavorite(station) },
+                modifier = Modifier
+                    .testTag("favorite_button_${station.id}")
+                    .minimumInteractiveComponentSize()
+            ) {
+                Icon(
+                    if (station.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                    contentDescription = if (station.isFavorite) "Quitar de favoritos" else "Agregar a favoritos",
+                    tint = if (station.isFavorite) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.size(24.dp * iconScale)
+                )
+            }
+
+            if (station.isCustom) {
+                IconButton(
+                    onClick = { onDelete(station) },
+                    modifier = Modifier
+                        .testTag("delete_button_${station.id}")
+                        .minimumInteractiveComponentSize()
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Eliminar radio",
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun StationsList(
     filteredStations: List<RadioStation>,
     currentStation: RadioStation?,
     playbackStatus: PlaybackStatus,
     onStationSelect: (RadioStation) -> Unit,
     onToggleFavorite: (RadioStation) -> Unit,
-    onDeleteStation: (RadioStation) -> Unit
+    onDeleteStation: (RadioStation) -> Unit,
+    onShare: (RadioStation) -> Unit
 ) {
     if (filteredStations.isEmpty()) {
         // Empty placeholder state
@@ -888,133 +1122,15 @@ fun StationsList(
             contentPadding = PaddingValues(bottom = 80.dp) // Generous bottom offset to prevent overlap with navbar
         ) {
             items(filteredStations) { station ->
-                val isPlaying = currentStation?.id == station.id
-                
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onStationSelect(station) }
-                        .testTag("station_card_${station.id}"),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isPlaying) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                    ),
-                    border = if (isPlaying) {
-                        androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
-                    } else null
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .padding(12.dp)
-                            .fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Radio circle thumbnail representing HTML mockup avatar
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(
-                                    if (isPlaying) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isPlaying && playbackStatus == PlaybackStatus.PLAYING) {
-                                // Mini jumping equalizer
-                                MiniVisualizer(color = MaterialTheme.colorScheme.primary)
-                            } else {
-                                Icon(
-                                    Icons.Default.PlayArrow,
-                                    contentDescription = null,
-                                    tint = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        // Text core infos
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = station.name,
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onBackground
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = station.genre,
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    ),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f, fill = false)
-                                )
-                                val geoParts = listOfNotNull(
-                                    station.country.takeIf { it.isNotEmpty() },
-                                    station.region.takeIf { it.isNotEmpty() },
-                                    station.province.takeIf { it.isNotEmpty() },
-                                    station.district.takeIf { it.isNotEmpty() }
-                                ).filter { it.isNotBlank() }
-
-                                if (geoParts.isNotEmpty()) {
-                                    Text(
-                                        text = "•",
-                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                                    )
-                                    Text(
-                                        text = geoParts.joinToString(" / "),
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                            fontSize = 11.sp
-                                        ),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(2f, fill = false)
-                                    )
-                                }
-                            }
-                        }
-
-                        // Right action buttons: Heart (Favorite) & Delete (If custom)
-                        IconButton(
-                            onClick = { onToggleFavorite(station) },
-                            modifier = Modifier
-                                .testTag("favorite_button_${station.id}")
-                                .minimumInteractiveComponentSize()
-                        ) {
-                            Icon(
-                                if (station.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                                contentDescription = if (station.isFavorite) "Quitar de favoritos" else "Agregar a favoritos",
-                                tint = if (station.isFavorite) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            )
-                        }
-
-                        if (station.isCustom) {
-                            IconButton(
-                                onClick = { onDeleteStation(station) },
-                                modifier = Modifier
-                                    .testTag("delete_button_${station.id}")
-                                    .minimumInteractiveComponentSize()
-                            ) {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = "Eliminar radio",
-                                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
-                                )
-                            }
-                        }
-                    }
-                }
+                StationItem(
+                    station = station,
+                    isPlaying = currentStation?.id == station.id && playbackStatus == PlaybackStatus.PLAYING,
+                    isBuffering = currentStation?.id == station.id && playbackStatus == PlaybackStatus.BUFFERING,
+                    onSelect = onStationSelect,
+                    onToggleFavorite = onToggleFavorite,
+                    onDelete = onDeleteStation,
+                    onShare = onShare
+                )
             }
         }
     }
@@ -1396,10 +1512,12 @@ fun NavigationTabSwitcher(
     onGenreSelect: (String) -> Unit,
     focusManager: androidx.compose.ui.focus.FocusManager,
     filteredStations: List<RadioStation>,
+    recentHistory: List<com.example.data.PlaybackHistory>,
     currentStation: RadioStation?,
     playbackStatus: PlaybackStatus,
     viewModel: RadioViewModel,
-    onActiveTabChange: (Int) -> Unit
+    onActiveTabChange: (Int) -> Unit,
+    onShare: (RadioStation) -> Unit
 ) {
     when (activeTab) {
         0 -> {
@@ -1459,7 +1577,8 @@ fun NavigationTabSwitcher(
                     playbackStatus = playbackStatus,
                     onStationSelect = { viewModel.playStation(it) },
                     onToggleFavorite = { viewModel.toggleFavorite(it) },
-                    onDeleteStation = { viewModel.deleteStation(it) }
+                    onDeleteStation = { viewModel.deleteStation(it) },
+                    onShare = onShare
                 )
             }
         }
@@ -1480,7 +1599,13 @@ fun NavigationTabSwitcher(
         }
         2 -> {
             val favorites = filteredStations.filter { it.isFavorite }
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 60.dp)
+            ) {
+                // FAVORITOS Section
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1510,7 +1635,7 @@ fun NavigationTabSwitcher(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 40.dp),
+                            .padding(vertical = 20.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1518,35 +1643,118 @@ fun NavigationTabSwitcher(
                                 Icons.Default.FavoriteBorder,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                modifier = Modifier.size(48.dp)
+                                modifier = Modifier.size(40.dp)
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                "No tienes favoritos aún",
-                                style = MaterialTheme.typography.titleMedium.copy(
+                                "Sin favoritos",
+                                style = MaterialTheme.typography.bodyMedium.copy(
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                                 )
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+                    }
+                } else {
+                    // Non-scrolling list inside scrollable column (simplified representation)
+                    favorites.forEach { station ->
+                        StationItem(
+                            station = station,
+                            isPlaying = currentStation?.id == station.id && playbackStatus == PlaybackStatus.PLAYING,
+                            isBuffering = currentStation?.id == station.id && playbackStatus == PlaybackStatus.BUFFERING,
+                            onSelect = { viewModel.playStation(station) },
+                            onToggleFavorite = { viewModel.toggleFavorite(station) },
+                            onDelete = { viewModel.deleteStation(station) },
+                            onShare = onShare
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // HISTORIAL Section
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.History,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "HISTORIAL",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                letterSpacing = 1.5.sp
+                            )
+                        )
+                    }
+
+                    if (recentHistory.isNotEmpty()) {
+                        TextButton(onClick = { viewModel.clearHistory() }) {
                             Text(
-                                "Marca el corazón en tus radios para verlas aquí",
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                ),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                "Limpiar",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (recentHistory.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.HistoryToggleOff,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                modifier = Modifier.size(40.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Historial vacío",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                                )
                             )
                         }
                     }
                 } else {
-                    StationsList(
-                        filteredStations = favorites,
-                        currentStation = currentStation,
-                        playbackStatus = playbackStatus,
-                        onStationSelect = { viewModel.playStation(it) },
-                        onToggleFavorite = { viewModel.toggleFavorite(it) },
-                        onDeleteStation = { viewModel.deleteStation(it) }
-                    )
+                    recentHistory.forEach { historyItem ->
+                        HistoryItem(
+                            historyItem = historyItem,
+                            onSelect = {
+                                // Find station by ID or just play from historical metadata if possible
+                                // For now, we try to find it in the current list
+                                val station = filteredStations.find { it.id.toLong() == historyItem.stationId }
+                                if (station != null) {
+                                    viewModel.playStation(station)
+                                } else {
+                                    // If not found (deleted custom station), we could potentially re-add it or just show error
+                                }
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                 }
             }
         }
@@ -1562,6 +1770,7 @@ fun DiscoverTab(
     onGenreSelect: (String) -> Unit,
     onCountrySelect: (String) -> Unit
 ) {
+    val iconScale = LocalIconScale.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1683,6 +1892,7 @@ fun DiscoverTab(
 
 @Composable
 fun SyncTab() {
+    val iconScale = LocalIconScale.current
     var isSyncing by remember { mutableStateOf(false) }
     var syncSuccess by remember { mutableStateOf(false) }
 
@@ -1724,7 +1934,7 @@ fun SyncTab() {
                         Icons.Default.Sync,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(32.dp * iconScale)
                     )
                 }
 
@@ -1812,6 +2022,72 @@ fun SyncTab() {
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun HistoryItem(
+    historyItem: com.example.data.PlaybackHistory,
+    onSelect: () -> Unit
+) {
+    val dateFormat = remember { java.text.SimpleDateFormat("dd MMM, HH:mm", java.util.Locale.getDefault()) }
+    val formattedDate = remember(historyItem.timestamp) { dateFormat.format(java.util.Date(historyItem.timestamp)) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onSelect() }
+            .testTag("history_item_${historyItem.id}"),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Radio,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = historyItem.stationName,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = formattedDate,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+
+            Icon(
+                Icons.Default.PlayArrow,
+                contentDescription = "Reproducir",
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }
