@@ -21,13 +21,16 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Generate debug keystore
+        run: |
+          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+
       - name: Build APK
         run: gradle assembleDebug
 
       - name: Find and prepare APK
         run: |
           APK_PATH=$(find . -name "app-debug.apk" | head -n 1)
-          echo "APK encontrado en: $APK_PATH"
           mkdir -p /tmp/output
           cp "$APK_PATH" /tmp/output/
 
