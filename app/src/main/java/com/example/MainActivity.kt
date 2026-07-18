@@ -8,11 +8,20 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.example.data.RadioDatabase
 import com.example.data.RadioRepository
 import com.example.ui.RadioApp
 import com.example.ui.RadioViewModel
 import com.example.ui.RadioViewModelFactory
+import com.example.ui.SettingsScreen
+import com.example.ui.SettingsViewModel
+import com.example.ui.SettingsViewModelFactory
+import com.example.data.AppTheme
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
@@ -30,13 +39,31 @@ class MainActivity : ComponentActivity() {
         // Instantiate SQLite persistence using singletons or standard builder patterns
         val database = RadioDatabase.getDatabase(applicationContext)
         val repository = RadioRepository(database.radioDao())
-        val factory = RadioViewModelFactory(application, repository)
+        val radioFactory = RadioViewModelFactory(application, repository)
+        val settingsFactory = SettingsViewModelFactory(application, repository)
         
         setContent {
-            MyApplicationTheme {
-                // Initialize the audio playback and state viewmodel
-                val viewModel: RadioViewModel = viewModel(factory = factory)
-                RadioApp(viewModel = viewModel)
+            val settingsViewModel: SettingsViewModel = viewModel(factory = settingsFactory)
+            val appTheme by settingsViewModel.appTheme.collectAsState()
+            
+            MyApplicationTheme(appTheme = appTheme) {
+                val navController = rememberNavController()
+                
+                NavHost(navController = navController, startDestination = "home") {
+                    composable("home") {
+                        val radioViewModel: RadioViewModel = viewModel(factory = radioFactory)
+                        RadioApp(
+                            viewModel = radioViewModel,
+                            onNavigateToSettings = { navController.navigate("settings") }
+                        )
+                    }
+                    composable("settings") {
+                        SettingsScreen(
+                            viewModel = settingsViewModel,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                }
             }
         }
     }

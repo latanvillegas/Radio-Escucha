@@ -40,7 +40,10 @@ import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RadioApp(viewModel: RadioViewModel) {
+fun RadioApp(
+    viewModel: RadioViewModel,
+    onNavigateToSettings: () -> Unit
+) {
     val currentStation by viewModel.currentStation.collectAsStateWithLifecycle()
     val playbackStatus by viewModel.playbackStatus.collectAsStateWithLifecycle()
     val volume by viewModel.volume.collectAsStateWithLifecycle()
@@ -73,13 +76,13 @@ fun RadioApp(viewModel: RadioViewModel) {
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFFD0BCFF).copy(alpha = 0.15f)),
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     Icons.Default.Radio,
                                     contentDescription = null,
-                                    tint = Color(0xFFD0BCFF),
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -88,7 +91,7 @@ fun RadioApp(viewModel: RadioViewModel) {
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     fontWeight = FontWeight.Medium,
                                     letterSpacing = (-0.5).sp,
-                                    color = Color(0xFFE6E1E5)
+                                    color = MaterialTheme.colorScheme.onBackground
                                 )
                             )
                         }
@@ -105,8 +108,8 @@ fun RadioApp(viewModel: RadioViewModel) {
                                 badge = {
                                     if (sleepSecondsLeft != null) {
                                         Badge(
-                                            containerColor = Color(0xFFD0BCFF),
-                                            contentColor = Color(0xFF381E72)
+                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            contentColor = MaterialTheme.colorScheme.onPrimary
                                         ) {
                                             Text(formatTimeLeft(sleepSecondsLeft), fontSize = 9.sp)
                                         }
@@ -116,7 +119,7 @@ fun RadioApp(viewModel: RadioViewModel) {
                                 Icon(
                                     if (sleepSecondsLeft != null) Icons.Filled.Timer else Icons.Outlined.Timer,
                                     contentDescription = "Temporizador de apagado",
-                                    tint = Color(0xFFCAC4D0)
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -127,21 +130,21 @@ fun RadioApp(viewModel: RadioViewModel) {
                                 .padding(end = 8.dp, start = 4.dp)
                                 .size(32.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF49454F))
-                                .clickable { showAddDialog = true },
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .clickable { onNavigateToSettings() },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Default.Person,
-                                contentDescription = "Profile",
-                                tint = Color(0xFFCAC4D0).copy(alpha = 0.8f),
+                                contentDescription = "Ajustes",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                                 modifier = Modifier.size(18.dp)
                             )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color(0xFF1C1B1F),
-                        titleContentColor = Color(0xFFE6E1E5)
+                        containerColor = MaterialTheme.colorScheme.background,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground
                     )
                 )
             },
@@ -149,8 +152,8 @@ fun RadioApp(viewModel: RadioViewModel) {
                 if (!isTablet) {
                     FloatingActionButton(
                         onClick = { showAddDialog = true },
-                        containerColor = Color(0xFFD0BCFF),
-                        contentColor = Color(0xFF381E72),
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier
                             .testTag("add_radio_fab")
@@ -167,7 +170,7 @@ fun RadioApp(viewModel: RadioViewModel) {
                 if (!isTablet) {
                     // Elegant M3-style bar conforming to Sophisticated Dark Palette
                     NavigationBar(
-                        containerColor = Color(0xFF211F26),
+                        containerColor = MaterialTheme.colorScheme.surface,
                         tonalElevation = 0.dp,
                         modifier = Modifier
                             .height(80.dp)
@@ -188,7 +191,7 @@ fun RadioApp(viewModel: RadioViewModel) {
                                     Icon(
                                         if (isSelected) item.first else item.second,
                                         contentDescription = item.third,
-                                        tint = if (isSelected) Color(0xFF381E72) else Color(0xFFCAC4D0)
+                                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 },
                                 label = {
@@ -196,30 +199,30 @@ fun RadioApp(viewModel: RadioViewModel) {
                                         item.third,
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) Color(0xFFE6E1E5) else Color(0xFFCAC4D0)
+                                            color = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     )
                                 },
                                 colors = NavigationBarItemDefaults.colors(
-                                    indicatorColor = Color(0xFFE8DEF8)
+                                    indicatorColor = MaterialTheme.colorScheme.primaryContainer
                                 )
                             )
                         }
                     }
                 }
             },
-            containerColor = Color(0xFF1C1B1F)
+            containerColor = MaterialTheme.colorScheme.background
         ) { innerPadding ->
             if (isTablet) {
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
-                        .background(Color(0xFF1C1B1F))
+                        .background(MaterialTheme.colorScheme.background)
                 ) {
                     // Left: Elegant M3 Navigation Rail on Tablet
                     NavigationRail(
-                        containerColor = Color(0xFF211F26),
+                        containerColor = MaterialTheme.colorScheme.surface,
                         modifier = Modifier
                             .fillMaxHeight()
                             .width(80.dp),
@@ -227,8 +230,8 @@ fun RadioApp(viewModel: RadioViewModel) {
                             Spacer(modifier = Modifier.height(8.dp))
                             FloatingActionButton(
                                 onClick = { showAddDialog = true },
-                                containerColor = Color(0xFFD0BCFF),
-                                contentColor = Color(0xFF381E72),
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
                                 shape = RoundedCornerShape(16.dp),
                                 modifier = Modifier
                                     .size(56.dp)
@@ -258,7 +261,7 @@ fun RadioApp(viewModel: RadioViewModel) {
                                     Icon(
                                         if (isSelected) item.first else item.second,
                                         contentDescription = item.third,
-                                        tint = if (isSelected) Color(0xFF381E72) else Color(0xFFCAC4D0)
+                                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 },
                                 label = {
@@ -266,12 +269,12 @@ fun RadioApp(viewModel: RadioViewModel) {
                                         item.third,
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) Color(0xFFE6E1E5) else Color(0xFFCAC4D0)
+                                            color = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     )
                                 },
                                 colors = NavigationRailItemDefaults.colors(
-                                    indicatorColor = Color(0xFFE8DEF8)
+                                    indicatorColor = MaterialTheme.colorScheme.primaryContainer
                                 )
                             )
                         }
@@ -333,7 +336,7 @@ fun RadioApp(viewModel: RadioViewModel) {
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
-                        .background(Color(0xFF1C1B1F))
+                        .background(MaterialTheme.colorScheme.background)
                 ) {
                     Column(
                         modifier = Modifier
@@ -426,14 +429,14 @@ fun PlaybackDashboard(
         colors = CardDefaults.cardColors(
             containerColor = Color.Transparent
         ),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF49454F).copy(alpha = 0.3f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Column(
             modifier = Modifier
                 .background(
                     brush = Brush.linearGradient(
-                        colors = listOf(Color(0xFF4A4458), Color(0xFF211F26))
+                        colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.surface)
                     )
                 )
                 .padding(20.dp)
@@ -450,14 +453,14 @@ fun PlaybackDashboard(
                         modifier = Modifier
                             .size(72.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFD0BCFF).copy(alpha = 0.1f)),
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.MusicNote,
                             contentDescription = null,
                             modifier = Modifier.size(36.dp),
-                            tint = Color(0xFFD0BCFF)
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                     Spacer(modifier = Modifier.height(16.dp))
@@ -465,7 +468,7 @@ fun PlaybackDashboard(
                         "SINTONIZAR RADIO",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFD0BCFF),
+                            color = MaterialTheme.colorScheme.primary,
                             letterSpacing = 2.sp
                         )
                     )
@@ -473,7 +476,7 @@ fun PlaybackDashboard(
                     Text(
                         "Selecciona una estación de la lista para escuchar",
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            color = Color(0xFFCAC4D0)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         ),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
@@ -503,13 +506,13 @@ fun PlaybackDashboard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .background(Color(0xFFD0BCFF), shape = RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(12.dp))
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
                             "AL AIRE",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = Color(0xFF381E72),
+                                color = MaterialTheme.colorScheme.onPrimary,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp
                             )
@@ -522,7 +525,7 @@ fun PlaybackDashboard(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .background(
-                                    color = Color(0xFF313033).copy(alpha = 0.6f),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                                     shape = RoundedCornerShape(8.dp)
                                 )
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -532,14 +535,14 @@ fun PlaybackDashboard(
                                 Icons.Default.Timer,
                                 contentDescription = null,
                                 modifier = Modifier.size(14.dp),
-                                tint = Color(0xFFD0BCFF)
+                                tint = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = formatTimeLeft(sleepSecondsLeft),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFD0BCFF)
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             )
                             Spacer(modifier = Modifier.width(4.dp))
@@ -547,7 +550,7 @@ fun PlaybackDashboard(
                                 Icons.Default.Close,
                                 contentDescription = "Cancelar temporizador",
                                 modifier = Modifier.size(12.dp),
-                                tint = Color(0xFFCAC4D0)
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -562,7 +565,7 @@ fun PlaybackDashboard(
                         Icon(
                             Icons.Default.Close,
                             contentDescription = "Detener",
-                            tint = Color(0xFFCAC4D0)
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -581,9 +584,9 @@ fun PlaybackDashboard(
                             .background(
                                 brush = Brush.sweepGradient(
                                     colors = listOf(
-                                        Color(0xFFD0BCFF),
-                                        Color(0xFF381E72),
-                                        Color(0xFFD0BCFF)
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.onPrimary,
+                                        MaterialTheme.colorScheme.primary
                                     )
                                 )
                             ),
@@ -594,14 +597,14 @@ fun PlaybackDashboard(
                             modifier = Modifier
                                 .size(26.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF211F26)),
+                                .background(MaterialTheme.colorScheme.surface),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Default.Radio,
                                 contentDescription = null,
                                 modifier = Modifier.size(12.dp),
-                                tint = Color(0xFFD0BCFF)
+                                tint = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
@@ -613,7 +616,7 @@ fun PlaybackDashboard(
                         Text(
                             text = currentStation.genre.uppercase(),
                             style = MaterialTheme.typography.labelMedium.copy(
-                                color = Color(0xFFD0BCFF),
+                                color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.SemiBold,
                                 letterSpacing = 1.sp
                             )
@@ -639,7 +642,7 @@ fun PlaybackDashboard(
                         Text(
                             text = if (geoParts.isNotEmpty()) geoParts.joinToString(" • ") else if (currentStation.isCustom) "Stream personalizado" else "Transmisión en vivo",
                             style = MaterialTheme.typography.bodySmall.copy(
-                                color = Color(0xFFCAC4D0)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             ),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -656,7 +659,7 @@ fun PlaybackDashboard(
                         .fillMaxWidth()
                         .height(30.dp)
                         .padding(horizontal = 4.dp),
-                    color = Color(0xFFD0BCFF)
+                    color = MaterialTheme.colorScheme.primary
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -685,7 +688,7 @@ fun PlaybackDashboard(
                         Icon(
                             Icons.Default.SkipPrevious,
                             contentDescription = "Anterior",
-                            tint = Color(0xFFCAC4D0),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(28.dp).clickable { /* Placeholder navigation */ }
                         )
 
@@ -694,13 +697,13 @@ fun PlaybackDashboard(
                                 Box(
                                     modifier = Modifier
                                         .size(48.dp)
-                                        .background(Color(0xFFD0BCFF), shape = RoundedCornerShape(14.dp)),
+                                        .background(MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(14.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     CircularProgressIndicator(
                                         modifier = Modifier.size(24.dp),
                                         strokeWidth = 2.5.dp,
-                                        color = Color(0xFF381E72)
+                                        color = MaterialTheme.colorScheme.onPrimary
                                     )
                                 }
                             }
@@ -709,7 +712,7 @@ fun PlaybackDashboard(
                                     modifier = Modifier
                                         .size(48.dp)
                                         .testTag("play_pause_button")
-                                        .background(Color(0xFFD0BCFF), shape = RoundedCornerShape(14.dp))
+                                        .background(MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(14.dp))
                                         .clip(RoundedCornerShape(14.dp))
                                         .clickable { onTogglePlay() },
                                     contentAlignment = Alignment.Center
@@ -717,7 +720,7 @@ fun PlaybackDashboard(
                                     Icon(
                                         if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                                         contentDescription = if (isPlaying) "Pausar" else "Reproducir",
-                                        tint = Color(0xFF381E72),
+                                        tint = MaterialTheme.colorScheme.onPrimary,
                                         modifier = Modifier.size(28.dp)
                                     )
                                 }
@@ -727,7 +730,7 @@ fun PlaybackDashboard(
                         Icon(
                             Icons.Default.SkipNext,
                             contentDescription = "Siguiente",
-                            tint = Color(0xFFCAC4D0),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(28.dp).clickable { /* Placeholder navigation */ }
                         )
                     }
@@ -745,7 +748,7 @@ fun PlaybackDashboard(
                         Text(
                             text = "128kbps AAC",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = Color(0xFFD0BCFF),
+                                color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold
                             )
                         )
@@ -776,25 +779,25 @@ fun SearchAndFilterSection(
                 .fillMaxWidth()
                 .testTag("search_stations_input"),
             placeholder = { Text("Buscar radios, categorías, géneros...", fontSize = 14.sp) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFFCAC4D0)) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { onSearchQueryChange("") }) {
-                        Icon(Icons.Default.Clear, contentDescription = "Limpiar consulta", tint = Color(0xFFCAC4D0))
+                        Icon(Icons.Default.Clear, contentDescription = "Limpiar consulta", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             },
             singleLine = true,
             shape = RoundedCornerShape(16.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = Color(0xFF2B2930),
-                unfocusedContainerColor = Color(0xFF2B2930),
-                focusedBorderColor = Color(0xFFD0BCFF),
-                unfocusedBorderColor = Color(0xFF49454F).copy(alpha = 0.5f),
-                focusedLabelColor = Color(0xFFD0BCFF),
-                unfocusedLabelColor = Color(0xFFCAC4D0),
-                focusedTextColor = Color(0xFFE6E1E5),
-                unfocusedTextColor = Color(0xFFE6E1E5)
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                unfocusedTextColor = MaterialTheme.colorScheme.onBackground
             )
         )
 
@@ -818,15 +821,15 @@ fun SearchAndFilterSection(
                     modifier = Modifier.testTag("genre_chip_$genre"),
                     shape = RoundedCornerShape(12.dp),
                     colors = FilterChipDefaults.filterChipColors(
-                        containerColor = Color(0xFF211F26),
-                        labelColor = Color(0xFFCAC4D0),
-                        selectedContainerColor = Color(0xFFD0BCFF),
-                        selectedLabelColor = Color(0xFF381E72)
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                     ),
                     border = FilterChipDefaults.filterChipBorder(
                         enabled = true,
                         selected = isSelected,
-                        borderColor = Color(0xFF49454F).copy(alpha = 0.4f),
+                        borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
                         selectedBorderColor = Color.Transparent
                     )
                 )
@@ -857,7 +860,7 @@ fun StationsList(
                 Icon(
                     Icons.Default.Radio,
                     contentDescription = null,
-                    tint = Color(0xFFCAC4D0).copy(alpha = 0.4f),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                     modifier = Modifier.size(48.dp)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
@@ -865,13 +868,13 @@ fun StationsList(
                     "No se encontraron radios",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFFE6E1E5).copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                     )
                 )
                 Text(
                     "Agrega una radio nueva o limpia los filtros",
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = Color(0xFFCAC4D0).copy(alpha = 0.5f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
                 )
             }
@@ -894,10 +897,10 @@ fun StationsList(
                         .testTag("station_card_${station.id}"),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isPlaying) Color(0xFF2B2930) else Color(0xFF2B2930).copy(alpha = 0.3f)
+                        containerColor = if (isPlaying) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                     ),
                     border = if (isPlaying) {
-                        androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD0BCFF).copy(alpha = 0.25f))
+                        androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
                     } else null
                 ) {
                     Row(
@@ -912,18 +915,18 @@ fun StationsList(
                                 .size(44.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(
-                                    if (isPlaying) Color(0xFF4A4458) else Color(0xFF313033)
+                                    if (isPlaying) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
                             if (isPlaying && playbackStatus == PlaybackStatus.PLAYING) {
                                 // Mini jumping equalizer
-                                MiniVisualizer(color = Color(0xFFD0BCFF))
+                                MiniVisualizer(color = MaterialTheme.colorScheme.primary)
                             } else {
                                 Icon(
                                     Icons.Default.PlayArrow,
                                     contentDescription = null,
-                                    tint = if (isPlaying) Color(0xFFD0BCFF) else Color(0xFFCAC4D0),
+                                    tint = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -937,7 +940,7 @@ fun StationsList(
                                 text = station.name,
                                 style = MaterialTheme.typography.bodyLarge.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFE6E1E5)
+                                    color = MaterialTheme.colorScheme.onBackground
                                 ),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -950,7 +953,7 @@ fun StationsList(
                                 Text(
                                     text = station.genre,
                                     style = MaterialTheme.typography.bodySmall.copy(
-                                        color = Color(0xFFCAC4D0)
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     ),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -966,12 +969,12 @@ fun StationsList(
                                 if (geoParts.isNotEmpty()) {
                                     Text(
                                         text = "•",
-                                        style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFFCAC4D0).copy(alpha = 0.5f))
+                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                                     )
                                     Text(
                                         text = geoParts.joinToString(" / "),
                                         style = MaterialTheme.typography.bodySmall.copy(
-                                            color = Color(0xFFCAC4D0).copy(alpha = 0.7f),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                             fontSize = 11.sp
                                         ),
                                         maxLines = 1,
@@ -992,7 +995,7 @@ fun StationsList(
                             Icon(
                                 if (station.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                                 contentDescription = if (station.isFavorite) "Quitar de favoritos" else "Agregar a favoritos",
-                                tint = if (station.isFavorite) Color(0xFFF2B8B5) else Color(0xFF938F99)
+                                tint = if (station.isFavorite) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                             )
                         }
 
@@ -1006,7 +1009,7 @@ fun StationsList(
                                 Icon(
                                     Icons.Default.Delete,
                                     contentDescription = "Eliminar radio",
-                                    tint = Color(0xFFF2B8B5).copy(alpha = 0.8f)
+                                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
                                 )
                             }
                         }
@@ -1423,7 +1426,7 @@ fun NavigationTabSwitcher(
                         text = "TUS RADIOS",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFCAC4D0),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             letterSpacing = 1.5.sp
                         )
                     )
@@ -1431,7 +1434,7 @@ fun NavigationTabSwitcher(
                     Box(
                         modifier = Modifier
                             .background(
-                                Color(0xFF313033),
+                                MaterialTheme.colorScheme.surfaceVariant,
                                 shape = RoundedCornerShape(4.dp)
                             )
                             .padding(horizontal = 8.dp, vertical = 2.dp)
@@ -1439,7 +1442,7 @@ fun NavigationTabSwitcher(
                         Text(
                             text = "SINCRONIZADAS CON GITHUB",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = Color(0xFF938F99),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 8.sp,
                                 letterSpacing = 0.5.sp
@@ -1487,7 +1490,7 @@ fun NavigationTabSwitcher(
                     Icon(
                         Icons.Default.Favorite,
                         contentDescription = null,
-                        tint = Color(0xFFF2B8B5),
+                        tint = MaterialTheme.colorScheme.tertiary,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -1495,7 +1498,7 @@ fun NavigationTabSwitcher(
                         text = "MIS FAVORITOS",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFCAC4D0),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             letterSpacing = 1.5.sp
                         )
                     )
@@ -1514,7 +1517,7 @@ fun NavigationTabSwitcher(
                             Icon(
                                 Icons.Default.FavoriteBorder,
                                 contentDescription = null,
-                                tint = Color(0xFFCAC4D0).copy(alpha = 0.4f),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                                 modifier = Modifier.size(48.dp)
                             )
                             Spacer(modifier = Modifier.height(12.dp))
@@ -1522,14 +1525,14 @@ fun NavigationTabSwitcher(
                                 "No tienes favoritos aún",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFFE6E1E5).copy(alpha = 0.7f)
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                                 )
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 "Marca el corazón en tus radios para verlas aquí",
                                 style = MaterialTheme.typography.bodySmall.copy(
-                                    color = Color(0xFFCAC4D0).copy(alpha = 0.5f)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 ),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
@@ -1569,7 +1572,7 @@ fun DiscoverTab(
             text = "EXPLORAR GÉNEROS",
             style = MaterialTheme.typography.labelLarge.copy(
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFFCAC4D0),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 letterSpacing = 1.5.sp
             )
         )
@@ -1591,7 +1594,7 @@ fun DiscoverTab(
                                 .testTag("discover_genre_$genre"),
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = Color(0xFF2B2930).copy(alpha = 0.5f)
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                             )
                         ) {
                             Box(
@@ -1602,14 +1605,14 @@ fun DiscoverTab(
                                     Icon(
                                         Icons.Default.MusicNote,
                                         contentDescription = null,
-                                        tint = Color(0xFFD0BCFF),
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = genre,
                                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = Color(0xFFE6E1E5),
+                                        color = MaterialTheme.colorScheme.onBackground,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -1630,7 +1633,7 @@ fun DiscoverTab(
             text = "EXPLORAR POR PAÍS / CONTINENTE",
             style = MaterialTheme.typography.labelLarge.copy(
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFFCAC4D0),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 letterSpacing = 1.5.sp
             )
         )
@@ -1654,7 +1657,7 @@ fun DiscoverTab(
                                 .testTag("discover_country_$country"),
                             shape = RoundedCornerShape(10.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = Color(0xFF211F26)
+                                containerColor = MaterialTheme.colorScheme.surface
                             )
                         ) {
                             Box(
@@ -1664,7 +1667,7 @@ fun DiscoverTab(
                                 Text(
                                     text = country,
                                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                                    color = Color(0xFFCAC4D0)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -1702,9 +1705,9 @@ fun SyncTab() {
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF2B2930).copy(alpha = 0.4f)
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
             ),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF49454F).copy(alpha = 0.3f))
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
@@ -1714,13 +1717,13 @@ fun SyncTab() {
                     modifier = Modifier
                         .size(64.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFD0BCFF).copy(alpha = 0.15f)),
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.Sync,
                         contentDescription = null,
-                        tint = Color(0xFFD0BCFF),
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(32.dp)
                     )
                 }
@@ -1738,7 +1741,7 @@ fun SyncTab() {
                 Text(
                     text = "Conecta y sincroniza tus estaciones personalizadas, tus favoritos y el historial de reproducción de manera segura en tu cuenta de GitHub.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFFCAC4D0),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 8.dp)
                 )
@@ -1749,7 +1752,7 @@ fun SyncTab() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(1.dp)
-                        .background(Color(0xFF49454F).copy(alpha = 0.5f))
+                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -1758,7 +1761,7 @@ fun SyncTab() {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Estado", color = Color(0xFFCAC4D0), fontSize = 14.sp)
+                    Text("Estado", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                     Text("Conectado (Mock)", color = Color.Green, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
@@ -1766,31 +1769,31 @@ fun SyncTab() {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Último respaldo", color = Color(0xFFCAC4D0), fontSize = 14.sp)
-                    Text(if (syncSuccess) "Hace unos segundos" else "Hace 2 horas", color = Color(0xFFE6E1E5), fontSize = 14.sp)
+                    Text("Último respaldo", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                    Text(if (syncSuccess) "Hace unos segundos" else "Hace 2 horas", color = MaterialTheme.colorScheme.onBackground, fontSize = 14.sp)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Repositorio", color = Color(0xFFCAC4D0), fontSize = 14.sp)
-                    Text("usuario/openradio-backup", color = Color(0xFFD0BCFF), fontSize = 14.sp)
+                    Text("Repositorio", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                    Text("usuario/openradio-backup", color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
                 if (isSyncing) {
                     CircularProgressIndicator(
-                        color = Color(0xFFD0BCFF),
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(32.dp)
                     )
                 } else {
                     Button(
                         onClick = { isSyncing = true },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFD0BCFF),
-                            contentColor = Color(0xFF381E72)
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
                         ),
                         modifier = Modifier.fillMaxWidth().height(48.dp)
                     ) {
