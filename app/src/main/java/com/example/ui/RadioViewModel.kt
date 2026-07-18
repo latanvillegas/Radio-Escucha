@@ -8,7 +8,12 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import android.content.ComponentName
+import com.google.common.util.concurrent.MoreExecutors
+import com.google.common.util.concurrent.ListenableFuture
+import com.example.service.PlaybackService
 import com.example.data.RadioRepository
 import com.example.data.RadioStation
 import kotlinx.coroutines.Job
@@ -25,7 +30,10 @@ class RadioViewModel(
     private val repository: RadioRepository
 ) : AndroidViewModel(application) {
 
-    private var exoPlayer: ExoPlayer? = null
+    
+    private var controllerFuture: ListenableFuture<MediaController>? = null
+    private var mediaController: MediaController? = null
+
 
     // Exposed States
     private val _currentStation = MutableStateFlow<RadioStation?>(null)
@@ -98,46 +106,39 @@ class RadioViewModel(
     }
 
     private fun setupPlayer() {
-        try {
-            val audioAttributes = androidx.media3.common.AudioAttributes.Builder()
-                .setUsage(androidx.media3.common.C.USAGE_MEDIA)
-                .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC)
-                .build()
-
-            exoPlayer = ExoPlayer.Builder(getApplication()).build().apply {
-                setAudioAttributes(audioAttributes, true)
-                repeatMode = Player.REPEAT_MODE_OFF
-                
-                addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(state: Int) {
-                        updateStatus()
-                    }
-
-                    override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        updateStatus()
-                    }
-
-                    override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                        updateStatus()
-                    }
-
-                    override fun onPlayerError(error: PlaybackException) {
-                        _playbackStatus.value = PlaybackStatus.ERROR
-                        _errorMessage.value = "Error de red o stream no disponible"
-                        _currentStation.value = null
-                    }
-                })
-                
-                // Set initial volume
-                volume = _volume.value
-            }
-        } catch (e: Exception) {
-            _errorMessage.value = "No se pudo iniciar el reproductor multimedia."
-        }
+        val sessionToken = SessionToken(getApplication(), ComponentName(getApplication(), PlaybackService::class.java))
+        controllerFuture = MediaController.Builder(getApplication(), sessionToken).buildAsync()
+        controllerFuture?.addListener(
+            {
+                try {
+                    mediaController = controllerFuture?.get()
+                    mediaController?.addListener(object : Player.Listener {
+                        override fun onPlaybackStateChanged(state: Int) {
+                            updateStatus()
+                        }
+                        override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            updateStatus()
+                        }
+                        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                            updateStatus()
+                        }
+                        override fun onPlayerError(error: PlaybackException) {
+                            _playbackStatus.value = PlaybackStatus.ERROR
+                            _errorMessage.value = "Error de red o stream no disponible"
+                            _currentStation.value = null
+                        }
+                    })
+                    mediaController?.volume = _volume.value
+                } catch (e: Exception) {
+                    _errorMessage.value = "No se pudo iniciar el reproductor multimedia."
+                }
+            },
+            MoreExecutors.directExecutor()
+        )
     }
 
     private fun updateStatus() {
-        val player = exoPlayer ?: return
+        val player = mediaController ?: return
         val state = player.playbackState
         val playing = player.isPlaying
         _playbackStatus.value = when {
@@ -154,11 +155,20 @@ class RadioViewModel(
         _currentStation.value = station
         _playbackStatus.value = PlaybackStatus.BUFFERING
         
-        exoPlayer?.let { player ->
+        mediaController?.let { player ->
             try {
                 player.stop()
                 player.clearMediaItems()
-                val mediaItem = MediaItem.fromUri(station.url)
+                                val mediaItem = MediaItem.Builder()
+                    .setUri(station.url)
+                    .setMediaId(station.id.toString())
+                    .setMediaMetadata(
+                        androidx.media3.common.MediaMetadata.Builder()
+                            .setTitle(station.name)
+                            .setArtist(station.genre)
+                            .build()
+                    )
+                    .build()
                 player.setMediaItem(mediaItem)
                 player.prepare()
                 player.play()
@@ -170,7 +180,7 @@ class RadioViewModel(
     }
 
     fun togglePlayPause() {
-        val player = exoPlayer ?: return
+        val player = mediaController ?: return
         val current = _currentStation.value ?: return
 
         if (player.isPlaying) {
@@ -182,7 +192,16 @@ class RadioViewModel(
             
             // If stopped or idle, re-configure
             if (player.playbackState == Player.STATE_IDLE) {
-                val mediaItem = MediaItem.fromUri(current.url)
+                                val mediaItem = MediaItem.Builder()
+                    .setUri(current.url)
+                    .setMediaId(current.id.toString())
+                    .setMediaMetadata(
+                        androidx.media3.common.MediaMetadata.Builder()
+                            .setTitle(current.name)
+                            .setArtist(current.genre)
+                            .build()
+                    )
+                    .build()
                 player.setMediaItem(mediaItem)
                 player.prepare()
             }
@@ -191,7 +210,7 @@ class RadioViewModel(
     }
 
     fun stopPlayback() {
-        exoPlayer?.stop()
+        mediaController?.stop()
         _playbackStatus.value = PlaybackStatus.IDLE
         _currentStation.value = null
         _errorMessage.value = null
@@ -200,7 +219,7 @@ class RadioViewModel(
     fun setVolume(vol: Float) {
         val clamped = vol.coerceIn(0.0f, 1.0f)
         _volume.value = clamped
-        exoPlayer?.volume = clamped
+        mediaController?.volume = clamped
     }
 
     // Sleep Timer Controls (Temporizador de Apagado)
@@ -286,8 +305,8 @@ class RadioViewModel(
     override fun onCleared() {
         super.onCleared()
         cancelSleepTimer()
-        exoPlayer?.release()
-        exoPlayer = null
+        controllerFuture?.let { MediaController.releaseFuture(it) }
+        mediaController = null
     }
 }
 
