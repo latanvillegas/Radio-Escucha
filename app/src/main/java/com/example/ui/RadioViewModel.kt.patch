@@ -1,0 +1,24 @@
+--- app/src/main/java/com/example/ui/RadioViewModel.kt
++++ app/src/main/java/com/example/ui/RadioViewModel.kt
+@@ -16,6 +16,7 @@
+ import com.example.service.PlaybackService
+ import com.example.data.RadioRepository
+ import com.example.data.RadioStation
++import android.util.Log
+ import kotlinx.coroutines.Job
+ import kotlinx.coroutines.delay
+ import kotlinx.coroutines.flow.*
+@@ -102,7 +103,12 @@
+         setupPlayer()
+         // Sync initial DB items
+         viewModelScope.launch {
+-            repository.checkAndPrepopulate()
++            try {
++                repository.checkAndPrepopulate()
++                Log.d("RadioViewModel", "Database prepopulated successfully")
++            } catch (e: Exception) {
++                Log.e("RadioViewModel", "Error prepopulating database", e)
++            }
+         }
+     }
+ 

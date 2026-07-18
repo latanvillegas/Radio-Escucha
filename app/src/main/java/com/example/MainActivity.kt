@@ -4,6 +4,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.RadioDatabase
 import com.example.data.RadioRepository
@@ -18,6 +21,11 @@ class MainActivity : ComponentActivity() {
         
         // Support edge-to-edge status & nav bar coloring natively
         enableEdgeToEdge()
+        
+        // Hide system bars for immersive mode
+        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+        windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
         
         // Instantiate SQLite persistence using singletons or standard builder patterns
         val database = RadioDatabase.getDatabase(applicationContext)

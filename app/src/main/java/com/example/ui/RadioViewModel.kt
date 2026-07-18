@@ -101,7 +101,7 @@ class RadioViewModel(
 
         // Sync initial DB items
         viewModelScope.launch {
-            repository.checkAndPrepopulate()
+            try { repository.checkAndPrepopulate(); android.util.Log.d("RadioViewModel", "DB prepopulated!") } catch (e: Exception) { android.util.Log.e("RadioViewModel", "Error DB", e) }
         }
     }
 
