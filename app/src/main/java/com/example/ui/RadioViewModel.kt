@@ -11,7 +11,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import android.content.ComponentName
-import com.google.common.util.concurrent.MoreExecutors
+import androidx.core.content.ContextCompat
 import com.google.common.util.concurrent.ListenableFuture
 import com.example.service.PlaybackService
 import com.example.data.RadioRepository
@@ -133,7 +133,7 @@ class RadioViewModel(
                     _errorMessage.value = "No se pudo iniciar el reproductor multimedia."
                 }
             },
-            MoreExecutors.directExecutor()
+            ContextCompat.getMainExecutor(getApplication())
         )
     }
 
