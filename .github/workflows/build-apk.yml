@@ -18,21 +18,13 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Find project directory
-        id: find
-        run: |
-          GRADLEW_PATH=$(find . -maxdepth 2 -name "gradlew" | head -n 1)
-          PROJECT_DIR=$(dirname "$GRADLEW_PATH")
-          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
-          echo "Encontrado en: $PROJECT_DIR"
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x "${{ steps.find.outputs.dir }}/gradlew"
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Build APK
-        run: cd "${{ steps.find.outputs.dir }}" && ./gradlew assembleDebug
+        run: gradle assembleDebug
 
-      - name: Find and upload APK
+      - name: Find and prepare APK
         run: |
           APK_PATH=$(find . -name "app-debug.apk" | head -n 1)
           echo "APK encontrado en: $APK_PATH"
