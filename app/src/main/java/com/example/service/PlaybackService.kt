@@ -77,7 +77,6 @@ class PlaybackService : MediaLibraryService() {
                 
                 return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                     .setAvailableSessionCommands(sessionCommands)
-                    .setAvailablePlayerCommands(session.player.availableCommands)
                     .setCustomLayout(listOf(favoriteButton))
                     .build()
             }
@@ -132,11 +131,10 @@ class PlaybackService : MediaLibraryService() {
                             val mediaItem = mapStationToMediaItem(lastStation)
                             MediaItemsWithStartPosition(listOf(mediaItem), 0, 0L)
                         } else {
-                            // Return failed future if no history is found
-                            throw UnsupportedOperationException("No history found for resumption")
+                            throw UnsupportedOperationException("No playback history available")
                         }
                     } catch (e: Exception) {
-                        throw e
+                        throw UnsupportedOperationException("Playback resumption failed", e)
                     }
                 }
             }
