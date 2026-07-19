@@ -144,8 +144,9 @@ class RadioViewModel(
     }
 
     private fun setupPlayer() {
-        val sessionToken = SessionToken(getApplication(), ComponentName(getApplication(), PlaybackService::class.java))
-        controllerFuture = MediaController.Builder(getApplication(), sessionToken).buildAsync()
+        val app = getApplication<Application>()
+        val sessionToken = SessionToken(app, ComponentName(app, PlaybackService::class.java))
+        controllerFuture = MediaController.Builder(app, sessionToken).buildAsync()
         controllerFuture?.addListener(
             {
                 try {
