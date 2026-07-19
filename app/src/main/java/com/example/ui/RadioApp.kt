@@ -1,5 +1,6 @@
 package com.example.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.res.painterResource
 import com.example.R
 import androidx.compose.animation.*
@@ -85,6 +86,15 @@ fun RadioApp(
     var showAddDialog by remember { mutableStateOf(false) }
     var showSleepTimerMenu by remember { mutableStateOf(false) }
     var activeTab by remember { mutableStateOf(0) }
+
+    // Handle system back button to return to first tab or close modals
+    BackHandler(enabled = activeTab != 0 || showAddDialog || showSleepTimerMenu) {
+        when {
+            showAddDialog -> showAddDialog = false
+            showSleepTimerMenu -> showSleepTimerMenu = false
+            activeTab != 0 -> activeTab = 0
+        }
+    }
 
     val density = LocalDensity.current
     val topBarHeight = 160.dp

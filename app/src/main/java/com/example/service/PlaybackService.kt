@@ -7,7 +7,14 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.session.*
+import androidx.media3.session.MediaSession
+import androidx.media3.session.MediaLibraryService
+import androidx.media3.session.MediaLibraryService.MediaLibrarySession
+import androidx.media3.session.LibraryResult
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.CommandButton
+import androidx.media3.session.SessionResult
+import androidx.media3.session.MediaSession.MediaItemsWithStartPosition
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import android.os.Bundle
@@ -67,6 +74,7 @@ class PlaybackService : MediaLibraryService() {
                 val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
                     .add(favoriteCommand)
                     .build()
+                
                 return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                     .setAvailableSessionCommands(sessionCommands)
                     .setCustomLayout(listOf(favoriteButton))
@@ -89,7 +97,7 @@ class PlaybackService : MediaLibraryService() {
             override fun onGetLibraryRoot(
                 session: MediaLibrarySession,
                 browser: MediaSession.ControllerInfo,
-                params: LibraryParams?
+                params: MediaLibraryService.LibraryParams?
             ): ListenableFuture<LibraryResult<MediaItem>> {
                 val rootMetadata = MediaMetadata.Builder()
                     .setIsBrowsable(true)
@@ -101,7 +109,35 @@ class PlaybackService : MediaLibraryService() {
                     .setMediaId(ROOT_ID)
                     .setMediaMetadata(rootMetadata)
                     .build()
-                return Futures.immediateFuture(LibraryResult.ofItem(rootItem, params))
+                
+                // For legacy browsers, some expect a non-null params even if empty
+                return Futures.immediateFuture(LibraryResult.ofItem(rootItem, params ?: MediaLibraryService.LibraryParams.Builder().build()))
+            }
+
+            override fun onPlaybackResumption(
+                session: MediaSession,
+                controller: MediaSession.ControllerInfo
+            ): ListenableFuture<MediaItemsWithStartPosition> {
+                return serviceScope.future {
+                    try {
+                        val history = repository.recentHistory.first()
+                        val lastStation = if (history.isNotEmpty()) {
+                            repository.getStationById(history.first().stationId)
+                        } else {
+                            repository.allStations.first().firstOrNull()
+                        }
+
+                        if (lastStation != null) {
+                            val mediaItem = mapStationToMediaItem(lastStation)
+                            MediaItemsWithStartPosition(listOf(mediaItem), 0, 0L)
+                        } else {
+                            // Return empty resumption if no history instead of throwing
+                            MediaItemsWithStartPosition(listOf(), 0, 0L)
+                        }
+                    } catch (e: Exception) {
+                        MediaItemsWithStartPosition(listOf(), 0, 0L)
+                    }
+                }
             }
 
             override fun onGetChildren(
@@ -110,13 +146,33 @@ class PlaybackService : MediaLibraryService() {
                 parentId: String,
                 page: Int,
                 pageSize: Int,
-                params: LibraryParams?
+                params: MediaLibraryService.LibraryParams?
             ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
                 return serviceScope.future {
                     if (parentId == ROOT_ID) {
                         val stations = repository.allStations.first()
                         val mediaItems = stations.map { mapStationToMediaItem(it) }
                         LibraryResult.ofItemList(ImmutableList.copyOf(mediaItems), params)
+                    } else {
+                        LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE)
+                    }
+                }
+            }
+
+            override fun onGetItem(
+                session: MediaLibrarySession,
+                browser: MediaSession.ControllerInfo,
+                mediaId: String
+            ): ListenableFuture<LibraryResult<MediaItem>> {
+                return serviceScope.future {
+                    val stationId = mediaId.toLongOrNull()
+                    if (stationId != null) {
+                        val station = repository.getStationById(stationId)
+                        if (station != null) {
+                            LibraryResult.ofItem(mapStationToMediaItem(station), null)
+                        } else {
+                            LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE)
+                        }
                     } else {
                         LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE)
                     }
