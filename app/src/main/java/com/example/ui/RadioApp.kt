@@ -43,6 +43,8 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import kotlin.math.roundToInt
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import com.example.data.RadioStation
@@ -1469,6 +1471,10 @@ fun SleepTimerDialog(
     onDismiss: () -> Unit,
     onSelectMinutes: (Int) -> Unit
 ) {
+    var showCustomPicker by remember { mutableStateOf(false) }
+    var customMinutesInput by remember { mutableStateOf("30") }
+    var customMinutesSlider by remember { mutableStateOf(30f) }
+
     Dialog(onDismissRequest = onDismiss) {
         Card(
             shape = RoundedCornerShape(20.dp),
@@ -1491,53 +1497,139 @@ fun SleepTimerDialog(
                 
                 Spacer(modifier = Modifier.height(8.dp))
                 
-                Text(
-                    text = if (currentSecondsLeft != null) {
-                        "Temporizador activo. Apagando en: ${formatTimeLeft(currentSecondsLeft)}"
-                    } else {
-                        "La radio se apagará automáticamente después del tiempo seleccionado."
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(bottom = 16.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
+                if (!showCustomPicker) {
+                    Text(
+                        text = if (currentSecondsLeft != null) {
+                            "Temporizador activo. Apagando en: ${formatTimeLeft(currentSecondsLeft)}"
+                        } else {
+                            "La radio se apagará automáticamente después del tiempo seleccionado."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 16.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
 
-                val options = listOf(
-                    15 to "15 Minutos",
-                    30 to "30 Minutos",
-                    45 to "45 Minutos",
-                    60 to "1 Hora"
-                )
+                    val options = listOf(
+                        15 to "15 Minutos",
+                        30 to "30 Minutos",
+                        45 to "45 Minutos",
+                        60 to "1 Hora"
+                    )
 
-                options.forEach { (mins, label) ->
+                    options.forEach { (mins, label) ->
+                        OutlinedButton(
+                            onClick = { onSelectMinutes(mins) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .testTag("sleep_timer_btn_$mins")
+                        ) {
+                            Text(label)
+                        }
+                    }
+
                     OutlinedButton(
-                        onClick = { onSelectMinutes(mins) },
+                        onClick = { showCustomPicker = true },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp)
-                            .testTag("sleep_timer_btn_$mins")
+                            .testTag("sleep_timer_btn_custom"),
+                        border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)))
                     ) {
-                        Text(label)
+                        Icon(
+                            Icons.Default.Edit, 
+                            contentDescription = null, 
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Personalizado", color = MaterialTheme.colorScheme.primary)
                     }
-                }
 
-                if (currentSecondsLeft != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = { onSelectMinutes(0) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error,
-                            contentColor = MaterialTheme.colorScheme.onError
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("sleep_timer_btn_cancel")
+                    if (currentSecondsLeft != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = { onSelectMinutes(0) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("sleep_timer_btn_cancel")
+                        ) {
+                            Text("Cancelar Temporizador")
+                        }
+                    }
+                } else {
+                    // Custom Picker
+                    Text(
+                        "Elige el tiempo (1 - 180 min)",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = customMinutesInput,
+                        onValueChange = { newValue ->
+                            if (newValue.isEmpty() || newValue.all { it.isDigit() }) {
+                                customMinutesInput = newValue
+                                val mins = newValue.toIntOrNull() ?: 0
+                                customMinutesSlider = mins.coerceIn(1, 180).toFloat()
+                            }
+                        },
+                        label = { Text("Minutos") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Slider(
+                        value = customMinutesSlider,
+                        onValueChange = {
+                            customMinutesSlider = it
+                            customMinutesInput = it.roundToInt().toString()
+                        },
+                        valueRange = 1f..180f,
+                        steps = 179,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Text(
+                        "${customMinutesSlider.roundToInt()} minutos",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("Cancelar Temporizador")
+                        TextButton(
+                            onClick = { showCustomPicker = false },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Volver")
+                        }
+                        Button(
+                            onClick = {
+                                val mins = customMinutesInput.toIntOrNull() ?: customMinutesSlider.roundToInt()
+                                onSelectMinutes(mins.coerceIn(1, 180))
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Iniciar")
+                        }
                     }
                 }
                 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 
                 TextButton(
                     onClick = onDismiss,
