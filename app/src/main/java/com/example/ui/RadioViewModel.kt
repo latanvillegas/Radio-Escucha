@@ -13,12 +13,14 @@ import androidx.media3.session.SessionToken
 import android.content.ComponentName
 import androidx.core.content.ContextCompat
 import com.google.common.util.concurrent.ListenableFuture
+import java.text.Normalizer
 import com.example.service.PlaybackService
 import com.example.data.RadioRepository
 import com.example.data.RadioStation
 import com.example.data.PlaybackHistory
 import com.example.util.ConnectivityObserver
 import com.example.util.NetworkConnectivityObserver
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -85,18 +87,36 @@ class RadioViewModel(
     val filteredStations: StateFlow<List<RadioStation>> = combine(
         stations, _searchQuery, _selectedGenre
     ) { stationList, query, genre ->
-        stationList.filter { station ->
-            val matchesQuery = station.name.contains(query, ignoreCase = true) ||
-                    station.genre.contains(query, ignoreCase = true)
-            val matchesGenre = genre == "Todas" || station.genre == genre
-            matchesQuery && matchesGenre
+        if (query.isBlank() && genre == "Todas") {
+            return@combine stationList
+        }
+        val normalizedQuery = query.normalize()
+        stationList.filter { s ->
+            val matchesGenre = genre == "Todas" || s.genre == genre
+            if (!matchesGenre) return@filter false
+            
+            if (normalizedQuery.isBlank()) return@filter true
+            
+            s.name.normalize().contains(normalizedQuery) ||
+            s.genre.normalize().contains(normalizedQuery) ||
+            s.country.normalize().contains(normalizedQuery) ||
+            s.region.normalize().contains(normalizedQuery) ||
+            s.province.normalize().contains(normalizedQuery) ||
+            s.district.normalize().contains(normalizedQuery)
         }
     }
+    .flowOn(Dispatchers.Default)
     .stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
+
+    private fun String.normalize(): String {
+        return Normalizer.normalize(this, Normalizer.Form.NFD)
+            .replace("\\p{M}+".toRegex(), "")
+            .lowercase()
+    }
 
     // Distinct Genres listing for filter chips
     val genresList: StateFlow<List<String>> = stations.map { stationList ->
