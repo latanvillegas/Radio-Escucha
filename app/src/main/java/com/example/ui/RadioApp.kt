@@ -1472,8 +1472,8 @@ fun SleepTimerDialog(
     onSelectMinutes: (Int) -> Unit
 ) {
     var showCustomPicker by remember { mutableStateOf(false) }
-    var customMinutesInput by remember { mutableStateOf("30") }
-    var customMinutesSlider by remember { mutableStateOf(30f) }
+    var customHours by remember { mutableStateOf(0) }
+    var customMinutes by remember { mutableStateOf(30) }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -1564,42 +1564,44 @@ fun SleepTimerDialog(
                 } else {
                     // Custom Picker
                     Text(
-                        "Elige el tiempo (1 - 180 min)",
+                        "Elige el tiempo (Máx 12h)",
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
 
-                    OutlinedTextField(
-                        value = customMinutesInput,
-                        onValueChange = { newValue ->
-                            if (newValue.isEmpty() || newValue.all { it.isDigit() }) {
-                                customMinutesInput = newValue
-                                val mins = newValue.toIntOrNull() ?: 0
-                                customMinutesSlider = mins.coerceIn(1, 180).toFloat()
-                            }
-                        },
-                        label = { Text("Minutos") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Hours
+                        TimeValuePicker(
+                            value = customHours,
+                            onValueChange = { customHours = it },
+                            label = "Horas",
+                            range = 0..12
+                        )
+                        
+                        Text(
+                            ":",
+                            style = MaterialTheme.typography.displaySmall,
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        )
+
+                        // Minutes
+                        TimeValuePicker(
+                            value = customMinutes,
+                            onValueChange = { customMinutes = it },
+                            label = "Minutos",
+                            range = 0..59
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    Slider(
-                        value = customMinutesSlider,
-                        onValueChange = {
-                            customMinutesSlider = it
-                            customMinutesInput = it.roundToInt().toString()
-                        },
-                        valueRange = 1f..180f,
-                        steps = 179,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
+                    val totalMinutes = (customHours * 60) + customMinutes
                     Text(
-                        "${customMinutesSlider.roundToInt()} minutos",
+                        if (totalMinutes > 0) "Total: $totalMinutes minutos" else "Selecciona un tiempo",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -1618,9 +1620,11 @@ fun SleepTimerDialog(
                         }
                         Button(
                             onClick = {
-                                val mins = customMinutesInput.toIntOrNull() ?: customMinutesSlider.roundToInt()
-                                onSelectMinutes(mins.coerceIn(1, 180))
+                                if (totalMinutes > 0) {
+                                    onSelectMinutes(totalMinutes)
+                                }
                             },
+                            enabled = totalMinutes > 0,
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(12.dp)
                         ) {
@@ -1639,6 +1643,45 @@ fun SleepTimerDialog(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TimeValuePicker(
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    label: String,
+    range: IntRange
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        IconButton(
+            onClick = { if (value < range.last) onValueChange(value + 1) },
+            enabled = value < range.last
+        ) {
+            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Aumentar $label")
+        }
+        
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.width(72.dp)
+        ) {
+            Text(
+                text = value.toString().padStart(2, '0'),
+                style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold),
+                modifier = Modifier.padding(vertical = 12.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+        
+        IconButton(
+            onClick = { if (value > range.first) onValueChange(value - 1) },
+            enabled = value > range.first
+        ) {
+            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Disminuir $label")
+        }
+        
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
