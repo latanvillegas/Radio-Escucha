@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -35,6 +36,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import com.example.data.RadioStation
 import com.example.ui.theme.LocalIconScale
 import kotlinx.coroutines.delay
@@ -73,6 +81,34 @@ fun RadioApp(
     var showAddDialog by remember { mutableStateOf(false) }
     var showSleepTimerMenu by remember { mutableStateOf(false) }
     var activeTab by remember { mutableStateOf(0) }
+
+    val density = LocalDensity.current
+    val topBarHeight = 160.dp
+    val topBarHeightPx = with(density) { topBarHeight.toPx() }
+    var topBarOffsetHeightPx by remember { mutableStateOf(0f) }
+
+    val bottomBarHeight = 80.dp
+    val bottomBarHeightPx = with(density) { bottomBarHeight.toPx() }
+    var bottomBarOffsetHeightPx by remember { mutableStateOf(0f) }
+
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val delta = available.y
+
+                // Update top bar offset (hides when scrolling down, i.e., delta is negative)
+                val newTopOffset = topBarOffsetHeightPx + delta
+                topBarOffsetHeightPx = newTopOffset.coerceIn(-topBarHeightPx, 0f)
+
+                // Update bottom bar offset (hides when scrolling down, i.e., delta is negative)
+                // When scrolling down (delta < 0), we want the bottom bar to move DOWN (positive offset)
+                val newBottomOffset = bottomBarOffsetHeightPx - delta
+                bottomBarOffsetHeightPx = newBottomOffset.coerceIn(0f, bottomBarHeightPx)
+
+                return Offset.Zero
+            }
+        }
+    }
 
     val focusManager = LocalFocusManager.current
 
@@ -165,13 +201,14 @@ fun RadioApp(
             },
             floatingActionButton = {
                 if (!isTablet) {
-                    FloatingActionButton(
+                        FloatingActionButton(
                         onClick = { showAddDialog = true },
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier
                             .testTag("add_radio_fab")
+                            .offset { IntOffset(0, bottomBarOffsetHeightPx.roundToInt()) }
                     ) {
                         Icon(
                             Icons.Default.Add,
@@ -188,7 +225,8 @@ fun RadioApp(
                         containerColor = MaterialTheme.colorScheme.surface,
                         tonalElevation = 0.dp,
                         modifier = Modifier
-                            .height(80.dp)
+                            .height(bottomBarHeight)
+                            .offset { IntOffset(0, bottomBarOffsetHeightPx.roundToInt()) }
                             .windowInsetsPadding(WindowInsets.navigationBars)
                     ) {
                         val navItems = listOf(
@@ -233,7 +271,7 @@ fun RadioApp(
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding)
+                        .padding(top = innerPadding.calculateTopPadding())
                         .background(MaterialTheme.colorScheme.background)
                 ) {
                     // Left: Elegant M3 Navigation Rail on Tablet
@@ -346,7 +384,10 @@ fun RadioApp(
                                 playbackStatus = playbackStatus,
                                 viewModel = viewModel,
                                 onActiveTabChange = { activeTab = it },
-                                onShare = shareStation
+                                onShare = shareStation,
+                                topBarOffsetHeightPx = topBarOffsetHeightPx,
+                                bottomBarOffsetHeightPx = bottomBarOffsetHeightPx,
+                                nestedScrollConnection = nestedScrollConnection
                             )
                         }
                     }
@@ -356,7 +397,7 @@ fun RadioApp(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding)
+                        .padding(top = innerPadding.calculateTopPadding())
                         .background(MaterialTheme.colorScheme.background)
                 ) {
                     Column(
@@ -399,7 +440,10 @@ fun RadioApp(
                             playbackStatus = playbackStatus,
                             viewModel = viewModel,
                             onActiveTabChange = { activeTab = it },
-                            onShare = shareStation
+                            onShare = shareStation,
+                            topBarOffsetHeightPx = topBarOffsetHeightPx,
+                            bottomBarOffsetHeightPx = bottomBarOffsetHeightPx,
+                            nestedScrollConnection = nestedScrollConnection
                         )
                     }
                 }
@@ -1079,12 +1123,14 @@ fun StationsList(
     onStationSelect: (RadioStation) -> Unit,
     onToggleFavorite: (RadioStation) -> Unit,
     onDeleteStation: (RadioStation) -> Unit,
-    onShare: (RadioStation) -> Unit
+    onShare: (RadioStation) -> Unit,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(bottom = 80.dp)
 ) {
     if (filteredStations.isEmpty()) {
         // Empty placeholder state
         Box(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
                 .padding(vertical = 40.dp)
                 .testTag("empty_stations_state"),
@@ -1115,11 +1161,11 @@ fun StationsList(
         }
     } else {
         LazyColumn(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
                 .testTag("stations_lazy_list"),
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(bottom = 80.dp) // Generous bottom offset to prevent overlap with navbar
+            contentPadding = contentPadding
         ) {
             items(filteredStations) { station ->
                 StationItem(
@@ -1517,71 +1563,104 @@ fun NavigationTabSwitcher(
     playbackStatus: PlaybackStatus,
     viewModel: RadioViewModel,
     onActiveTabChange: (Int) -> Unit,
-    onShare: (RadioStation) -> Unit
+    onShare: (RadioStation) -> Unit,
+    topBarOffsetHeightPx: Float,
+    bottomBarOffsetHeightPx: Float,
+    nestedScrollConnection: NestedScrollConnection
 ) {
-    when (activeTab) {
-        0 -> {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                SearchAndFilterSection(
-                    searchQuery = searchQuery,
-                    onSearchQueryChange = onSearchQueryChange,
-                    genres = genresList,
-                    selectedGenre = selectedGenre,
-                    onGenreSelect = onGenreSelect,
-                    focusManager = focusManager
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "TUS RADIOS",
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            letterSpacing = 1.5.sp
-                        )
+    val density = LocalDensity.current
+    val searchSectionHeight = 120.dp
+    val headerSectionHeight = 40.dp
+    val bottomBarHeight = 80.dp
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .nestedScroll(nestedScrollConnection)
+    ) {
+        when (activeTab) {
+            0 -> {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    StationsList(
+                        filteredStations = filteredStations,
+                        currentStation = currentStation,
+                        playbackStatus = playbackStatus,
+                        onStationSelect = { viewModel.playStation(it) },
+                        onToggleFavorite = { viewModel.toggleFavorite(it) },
+                        onDeleteStation = { viewModel.deleteStation(it) },
+                        onShare = onShare,
+                        modifier = Modifier.padding(top = searchSectionHeight + headerSectionHeight + with(density) { topBarOffsetHeightPx.coerceIn(-with(density) { searchSectionHeight.toPx() }, 0f).toDp() }),
+                        contentPadding = PaddingValues(bottom = with(density) { (bottomBarHeight.toPx() - bottomBarOffsetHeightPx).toDp() })
                     )
 
-                    Box(
+                    Column(
                         modifier = Modifier
-                            .background(
-                                MaterialTheme.colorScheme.surfaceVariant,
-                                shape = RoundedCornerShape(4.dp)
-                            )
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.background)
                     ) {
-                        Text(
-                            text = "SINCRONIZADAS CON GITHUB",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 8.sp,
-                                letterSpacing = 0.5.sp
+                        // Collapsible Search Section
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(searchSectionHeight + with(density) { topBarOffsetHeightPx.coerceIn(-with(density) { searchSectionHeight.toPx() }, 0f).toDp() })
+                                .clipToBounds()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .offset { IntOffset(0, topBarOffsetHeightPx.coerceIn(-with(density) { searchSectionHeight.toPx() }, 0f).roundToInt()) }
+                            ) {
+                                SearchAndFilterSection(
+                                    searchQuery = searchQuery,
+                                    onSearchQueryChange = onSearchQueryChange,
+                                    genres = genresList,
+                                    selectedGenre = selectedGenre,
+                                    onGenreSelect = onGenreSelect,
+                                    focusManager = focusManager
+                                )
+                            }
+                        }
+
+                        // Fixed "TUS RADIOS" Header
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(headerSectionHeight)
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "TUS RADIOS",
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    letterSpacing = 1.5.sp
+                                )
                             )
-                        )
+
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        MaterialTheme.colorScheme.surfaceVariant,
+                                        shape = RoundedCornerShape(4.dp)
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "SINCRONIZADAS CON GITHUB",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 8.sp,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                StationsList(
-                    filteredStations = filteredStations,
-                    currentStation = currentStation,
-                    playbackStatus = playbackStatus,
-                    onStationSelect = { viewModel.playStation(it) },
-                    onToggleFavorite = { viewModel.toggleFavorite(it) },
-                    onDeleteStation = { viewModel.deleteStation(it) },
-                    onShare = onShare
-                )
             }
-        }
         1 -> {
             DiscoverTab(
                 genres = genresList.filter { it != "Todas" },
@@ -1594,7 +1673,8 @@ fun NavigationTabSwitcher(
                     onSearchQueryChange(country)
                     onGenreSelect("Todas")
                     onActiveTabChange(0)
-                }
+                },
+                bottomBarOffsetHeightPx = bottomBarOffsetHeightPx
             )
         }
         2 -> {
@@ -1603,7 +1683,7 @@ fun NavigationTabSwitcher(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(bottom = 60.dp)
+                    .padding(bottom = with(density) { (80.dp.toPx() - bottomBarOffsetHeightPx).toDp() })
             ) {
                 // FAVORITOS Section
                 Row(
@@ -1759,23 +1839,26 @@ fun NavigationTabSwitcher(
             }
         }
         3 -> {
-            SyncTab()
+            SyncTab(bottomBarOffsetHeightPx = bottomBarOffsetHeightPx)
         }
     }
+}
 }
 
 @Composable
 fun DiscoverTab(
     genres: List<String>,
     onGenreSelect: (String) -> Unit,
-    onCountrySelect: (String) -> Unit
+    onCountrySelect: (String) -> Unit,
+    bottomBarOffsetHeightPx: Float
 ) {
     val iconScale = LocalIconScale.current
+    val density = LocalDensity.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(bottom = 60.dp)
+            .padding(bottom = with(density) { (80.dp.toPx() - bottomBarOffsetHeightPx).toDp() })
     ) {
         Text(
             text = "EXPLORAR GÉNEROS",
@@ -1891,8 +1974,9 @@ fun DiscoverTab(
 }
 
 @Composable
-fun SyncTab() {
+fun SyncTab(bottomBarOffsetHeightPx: Float) {
     val iconScale = LocalIconScale.current
+    val density = LocalDensity.current
     var isSyncing by remember { mutableStateOf(false) }
     var syncSuccess by remember { mutableStateOf(false) }
 
@@ -1908,7 +1992,7 @@ fun SyncTab() {
         modifier = Modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(bottom = 60.dp),
+            .padding(bottom = with(density) { (80.dp.toPx() - bottomBarOffsetHeightPx).toDp() }),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Card(
