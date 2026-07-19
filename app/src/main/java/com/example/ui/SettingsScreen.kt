@@ -22,6 +22,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
+import com.example.R
 import com.example.data.AppTheme
 import com.example.data.AppFontSize
 import com.example.data.AppIconSize
@@ -37,6 +42,7 @@ fun SettingsScreen(
     val fontSize by viewModel.appFontSize.collectAsState()
     val iconSize by viewModel.appIconSize.collectAsState()
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     val scrollState = rememberScrollState()
 
     val importLauncher = rememberLauncherForActivityResult(
@@ -171,6 +177,31 @@ fun SettingsScreen(
                     title = "Versión de la App",
                     value = "1.0.0 (Build ${BuildConfig.VERSION_CODE})"
                 )
+            }
+
+            // Developer
+            SettingsSection(title = "Desarrollador") {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SettingsInfoItem(
+                        icon = Icons.Default.Person,
+                        title = "Desarrollador",
+                        value = "Latan Villegas"
+                    )
+                    
+                    SettingsActionItem(
+                        icon = ImageVector.vectorResource(id = R.drawable.ic_github),
+                        title = "Perfil de GitHub",
+                        subtitle = "Ver perfil de Latan Villegas",
+                        onClick = { uriHandler.openUri("https://github.com/latanvillegas") }
+                    )
+
+                    SettingsActionItem(
+                        icon = ImageVector.vectorResource(id = R.drawable.ic_github),
+                        title = "Código fuente de esta app",
+                        subtitle = "Ver repositorio en GitHub",
+                        onClick = { uriHandler.openUri("https://github.com/latanvillegas/Radio-Escucha") }
+                    )
+                }
             }
         }
     }
