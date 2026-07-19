@@ -1,21 +1,44 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# OpenRadio
 
-# Run and deploy your AI Studio app
+App de radios en vivo de Perú y Latinoamérica, con streaming, favoritos, historial de reproducción y soporte para Android Auto.
 
-This contains everything you need to run your app locally.
+## Características principales
 
-View your app in AI Studio: https://ai.studio/apps/a64a84e7-a34d-42ab-9cb1-daea258afb6f
+- **Streaming de radio en vivo**: Integración con ExoPlayer/Media3 para una reproducción fluida y estable.
+- **Reproducción en segundo plano**: Notificación persistente que permite controlar la radio sin abrir la app.
+- **Favoritos y Biblioteca**: Guarda tus estaciones preferidas y gestiona tu colección personal.
+- **Historial de reproducción**: Accede rápidamente a las últimas radios escuchadas.
+- **Temporizador de apagado (Sleep Timer)**: Configura la app para que se detenga automáticamente.
+- **Temas de color personalizables**: Elige entre temas como Cósmico, AMOLED, Medianoche Azul y Ámbar Cálido.
+- **Accesibilidad**: Ajuste dinámico de tamaño de letra e íconos para una mejor experiencia.
+- **Soporte para Android Auto**: Escucha tus radios favoritas de forma segura mientras conduces.
+- **Sincronización con GitHub**: Mantén tus datos sincronizados de forma segura.
 
-## Run Locally
+## Stack Técnico
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+- **Lenguaje**: Kotlin
+- **UI**: Jetpack Compose (Material Design 3)
+- **Base de datos**: Room
+- **Audio**: Media3 / ExoPlayer
+- **Preferencias**: DataStore
 
+## Instalación
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
+Para instalar OpenRadio en tu dispositivo Android:
+
+1. Ve a la sección de **Releases** o **Artifacts** en el repositorio de GitHub del proyecto.
+2. Descarga el archivo APK más reciente.
+3. Abre el archivo descargado en tu dispositivo. Si es la primera vez, es posible que debas habilitar la instalación desde "Fuentes desconocidas" en los ajustes de seguridad.
+4. Sigue los pasos de instalación y ¡listo!
+
+## Para Desarrolladores
+
+Si deseas explorar el código o realizar cambios:
+
+1. Clona el repositorio.
+2. Abre el proyecto en **Android Studio** (Koala o superior).
+3. Asegúrate de tener configurado el SDK de Android y las dependencias de Gradle se descargarán automáticamente.
+4. Conecta un dispositivo físico o usa un emulador para ejecutar la aplicación.
+
+---
+*OpenRadio - Tu ventana al mundo de la radio latinoamericana.*

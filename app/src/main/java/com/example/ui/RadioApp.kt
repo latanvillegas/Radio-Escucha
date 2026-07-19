@@ -1,5 +1,7 @@
 package com.example.ui
 
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -131,10 +133,10 @@ fun RadioApp(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    Icons.Default.Radio,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp * iconScale)
+                                    painter = painterResource(id = R.drawable.ic_openradio_logo),
+                                    contentDescription = "OpenRadio Logo",
+                                    tint = Color.Unspecified,
+                                    modifier = Modifier.size(24.dp * iconScale)
                                 )
                             }
                             Text(
