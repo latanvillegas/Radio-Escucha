@@ -20,6 +20,7 @@ import com.example.util.ConnectivityObserver
 import com.example.util.NetworkConnectivityObserver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -131,8 +132,8 @@ class RadioViewModel(
     private val _sleepSecondsLeft = MutableStateFlow<Int?>(null)
     val sleepSecondsLeft: StateFlow<Int?> = _sleepSecondsLeft.asStateFlow()
 
-    // Radio Provider selection ("Radio-Browser", "iHeartRadio", "TuneIn", "GitHub Raw")
-    private val _selectedRadioProvider = MutableStateFlow("Radio-Browser")
+    // Radio Provider selection ("Todas", "Radio-Browser", "iHeartRadio", "TuneIn", "SomaFM", "GitHub Raw")
+    private val _selectedRadioProvider = MutableStateFlow("Todas")
     val selectedRadioProvider: StateFlow<String> = _selectedRadioProvider.asStateFlow()
 
     // Radio Browser / Online Radio states
@@ -157,8 +158,8 @@ class RadioViewModel(
             try { repository.checkAndPrepopulate(); android.util.Log.d("RadioViewModel", "DB prepopulated!") } catch (e: Exception) { android.util.Log.e("RadioViewModel", "Error DB", e) }
         }
 
-        // Load default popular stations from Radio Browser
-        loadRadioBrowserTopVoted()
+        // Load default stations (All sources unified)
+        loadOnlineStationsForCurrentProvider()
     }
 
     private fun setupPlayer() {
@@ -380,10 +381,13 @@ class RadioViewModel(
         val provider = _selectedRadioProvider.value
         val query = _radioBrowserSearchQuery.value
         when (provider) {
+            "Todas" -> performGlobalMultiApiSearch(query)
             "iHeartRadio" -> fetchIHeartRadioStations(query)
             "TuneIn" -> fetchTuneInStations(query)
             "GitHub Raw" -> fetchGitHubCuratedStations(query)
-            else -> loadRadioBrowserTopVoted()
+            "SomaFM" -> fetchSomaFmStations(query)
+            "Radio-Browser" -> loadRadioBrowserTopVoted()
+            else -> performGlobalMultiApiSearch(query)
         }
     }
 
@@ -396,10 +400,12 @@ class RadioViewModel(
         }
 
         when (provider) {
+            "Todas" -> performGlobalMultiApiSearch(query)
             "iHeartRadio" -> fetchIHeartRadioStations(query)
             "TuneIn" -> fetchTuneInStations(query)
             "GitHub Raw" -> fetchGitHubCuratedStations(query)
-            else -> {
+            "SomaFM" -> fetchSomaFmStations(query)
+            "Radio-Browser" -> {
                 viewModelScope.launch(Dispatchers.IO) {
                     _radioBrowserLoading.value = true
                     _radioBrowserError.value = null
@@ -413,6 +419,107 @@ class RadioViewModel(
                         _radioBrowserLoading.value = false
                     }
                 }
+            }
+            else -> performGlobalMultiApiSearch(query)
+        }
+    }
+
+    private fun performGlobalMultiApiSearch(query: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _radioBrowserLoading.value = true
+            _radioBrowserError.value = null
+            try {
+                val q = query.trim()
+
+                // 1. Radio Browser
+                val rbDeferred = async {
+                    try {
+                        if (q.isBlank()) {
+                            RadioBrowserApiClient.service.getTopVoteStations(limit = 20).map { it.toRadioStation() }
+                        } else {
+                            RadioBrowserApiClient.service.searchStations(name = q, limit = 25).map { it.toRadioStation() }
+                        }
+                    } catch (e: Exception) { emptyList() }
+                }
+
+                // 2. GitHub Raw Curated
+                val ghDeferred = async {
+                    try {
+                        val list = MultiSourceRadioClients.fallbackGitHubCuratedList
+                        if (q.isBlank()) list else list.filter {
+                            it.name.contains(q, ignoreCase = true) ||
+                            it.genre.contains(q, ignoreCase = true) ||
+                            it.country.contains(q, ignoreCase = true)
+                        }
+                    } catch (e: Exception) { emptyList() }
+                }
+
+                // 3. SomaFM
+                val somaDeferred = async {
+                    try {
+                        val channels = MultiSourceRadioClients.somaFmService.getChannels().channels ?: emptyList()
+                        val stations = channels.map { it.toRadioStation() }
+                        if (q.isBlank()) stations.take(12) else stations.filter {
+                            it.name.contains(q, ignoreCase = true) ||
+                            it.genre.contains(q, ignoreCase = true)
+                        }
+                    } catch (e: Exception) { emptyList() }
+                }
+
+                // 4. iHeartRadio
+                val iHeartDeferred = async {
+                    try {
+                        val response = MultiSourceRadioClients.iHeartService.getLiveStations(
+                            keywords = q.takeIf { it.isNotBlank() },
+                            limit = 20
+                        )
+                        val dtos = response.hits ?: response.items ?: emptyList()
+                        val res = dtos.map { it.toRadioStation() }
+                        if (res.isNotEmpty()) res else listOf(
+                            RadioStation(id = 8101, name = "iHeartRadio Top 40", url = "https://stream.revma.ihrhls.com/zc1469", genre = "Top 40 / Hits", country = "EE.UU.", region = "iHeartMedia"),
+                            RadioStation(id = 8102, name = "iHeartRadio Country", url = "https://stream.revma.ihrhls.com/zc4414", genre = "Country", country = "EE.UU.", region = "iHeartMedia")
+                        )
+                    } catch (e: Exception) { emptyList() }
+                }
+
+                // 5. TuneIn
+                val tuneInDeferred = async {
+                    try {
+                        val response = if (q.isNotBlank()) {
+                            MultiSourceRadioClients.tuneInService.searchStations(q)
+                        } else {
+                            MultiSourceRadioClients.tuneInService.getPresets()
+                        }
+                        val body = response.body ?: emptyList()
+                        val list = mutableListOf<RadioStation>()
+                        fun parse(items: List<TuneInBodyItem>) {
+                            for (item in items) {
+                                if (item.type == "audio" || item.item == "station" || item.presetId.isNotBlank()) {
+                                    list.add(item.toRadioStation())
+                                }
+                                item.children?.let { parse(it) }
+                            }
+                        }
+                        parse(body)
+                        list.take(15)
+                    } catch (e: Exception) { emptyList() }
+                }
+
+                val rbList = rbDeferred.await()
+                val ghList = ghDeferred.await()
+                val somaList = somaDeferred.await()
+                val ihList = iHeartDeferred.await()
+                val tuneList = tuneInDeferred.await()
+
+                val combined = (rbList + ghList + somaList + ihList + tuneList)
+                    .distinctBy { (it.name.lowercase().trim()) to (it.url.lowercase().trim()) }
+
+                _radioBrowserStations.value = combined
+            } catch (e: Exception) {
+                _radioBrowserError.value = "Error en la búsqueda multifuente: ${e.localizedMessage}"
+                _radioBrowserStations.value = emptyList()
+            } finally {
+                _radioBrowserLoading.value = false
             }
         }
     }
@@ -511,6 +618,32 @@ class RadioViewModel(
                 _radioBrowserStations.value = filtered
             } catch (e: Exception) {
                 _radioBrowserStations.value = MultiSourceRadioClients.fallbackGitHubCuratedList
+            } finally {
+                _radioBrowserLoading.value = false
+            }
+        }
+    }
+
+    private fun fetchSomaFmStations(query: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _radioBrowserLoading.value = true
+            _radioBrowserError.value = null
+            try {
+                val response = MultiSourceRadioClients.somaFmService.getChannels()
+                val channels = response.channels ?: emptyList()
+                val stations = channels.map { it.toRadioStation() }
+                val filtered = if (query.isNotBlank()) {
+                    stations.filter {
+                        it.name.contains(query, ignoreCase = true) ||
+                        it.genre.contains(query, ignoreCase = true)
+                    }
+                } else {
+                    stations
+                }
+                _radioBrowserStations.value = filtered
+            } catch (e: Exception) {
+                _radioBrowserError.value = "Error al conectar con SomaFM: ${e.localizedMessage ?: "Error de red"}"
+                _radioBrowserStations.value = emptyList()
             } finally {
                 _radioBrowserLoading.value = false
             }

@@ -147,6 +147,41 @@ interface GitHubRadioApiService {
 }
 
 // ==========================================
+// 4. SomaFM API Models & Service (Indie & Electronic Radio Channels)
+// ==========================================
+data class SomaFmResponse(
+    @Json(name = "channels") val channels: List<SomaFmChannelDto>? = null
+)
+
+data class SomaFmChannelDto(
+    @Json(name = "id") val id: String = "",
+    @Json(name = "title") val title: String = "",
+    @Json(name = "description") val description: String = "",
+    @Json(name = "dj") val dj: String = "",
+    @Json(name = "genre") val genre: String = "",
+    @Json(name = "image") val image: String = ""
+) {
+    fun toRadioStation(): RadioStation {
+        val streamUrl = "https://ice1.somafm.com/${id}-128-mp3"
+        return RadioStation(
+            id = (id.hashCode() and 0x7FFFFFFF),
+            name = "SomaFM: $title",
+            url = streamUrl,
+            genre = genre.replace("|", " / ").ifBlank { "Ambient / Indie" },
+            isFavorite = false,
+            isCustom = true,
+            country = "Estados Unidos (San Francisco)",
+            region = "SomaFM Radio"
+        )
+    }
+}
+
+interface SomaFmApiService {
+    @GET("channels.json")
+    suspend fun getChannels(): SomaFmResponse
+}
+
+// ==========================================
 // Centralized API Clients Singleton
 // ==========================================
 object MultiSourceRadioClients {
@@ -190,6 +225,15 @@ object MultiSourceRadioClients {
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
             .create(GitHubRadioApiService::class.java)
+    }
+
+    val somaFmService: SomaFmApiService by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://api.somafm.com/")
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(SomaFmApiService::class.java)
     }
 
     // Static fallback list of high-quality GitHub Raw Curated radios

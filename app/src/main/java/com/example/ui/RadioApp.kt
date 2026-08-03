@@ -2024,9 +2024,11 @@ fun DiscoverTab(
         Spacer(modifier = Modifier.height(8.dp))
 
         val providerList = listOf(
+            "Todas" to "Todas las fuentes (Búsqueda Unificada)",
             "Radio-Browser" to "Radio-Browser (+40k)",
             "iHeartRadio" to "iHeartRadio",
             "TuneIn" to "TuneIn Directory",
+            "SomaFM" to "SomaFM (Indie/Ambient)",
             "GitHub Raw" to "GitHub Raw (Curadas)"
         )
 
@@ -2077,8 +2079,10 @@ fun DiscoverTab(
                     contentAlignment = Alignment.Center
                 ) {
                     val icon = when (selectedProvider) {
+                        "Todas" -> Icons.Default.Public
                         "iHeartRadio" -> Icons.Default.Favorite
                         "TuneIn" -> Icons.Default.Radio
+                        "SomaFM" -> Icons.Default.GraphicEq
                         "GitHub Raw" -> Icons.Default.CloudDownload
                         else -> Icons.Default.Public
                     }
@@ -2094,14 +2098,18 @@ fun DiscoverTab(
 
                 Column(modifier = Modifier.weight(1f)) {
                     val title = when (selectedProvider) {
+                        "Todas" -> "Búsqueda Unificada (Todas las APIs)"
                         "iHeartRadio" -> "API iHeartRadio"
                         "TuneIn" -> "Directorio TuneIn"
+                        "SomaFM" -> "SomaFM Independent Radio"
                         "GitHub Raw" -> "Listas Curadas (GitHub)"
                         else -> "Navegador Radio-Browser"
                     }
                     val subtitle = when (selectedProvider) {
+                        "Todas" -> "Busca en tiempo real simultáneamente en Radio-Browser, iHeart, TuneIn, SomaFM y GitHub"
                         "iHeartRadio" -> "Emisoras internacionales premium y de alta calidad"
                         "TuneIn" -> "Catálogo global y presets por identificador"
+                        "SomaFM" -> "Radio independiente sin anuncios, ambient, lounge y electrónica"
                         "GitHub Raw" -> "Lista estática actualizada sin caídas de servidor"
                         else -> "Explora +40,000 emisoras abiertas de todo el mundo"
                     }
