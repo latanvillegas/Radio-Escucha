@@ -1997,6 +1997,7 @@ fun DiscoverTab(
     val density = LocalDensity.current
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    val selectedProvider by viewModel.selectedRadioProvider.collectAsStateWithLifecycle()
     val onlineStations by viewModel.radioBrowserStations.collectAsStateWithLifecycle()
     val isLoading by viewModel.radioBrowserLoading.collectAsStateWithLifecycle()
     val errorMsg by viewModel.radioBrowserError.collectAsStateWithLifecycle()
@@ -2011,7 +2012,49 @@ fun DiscoverTab(
             .verticalScroll(rememberScrollState())
             .padding(bottom = with(density) { (80.dp.toPx() - bottomBarOffsetHeightPx).toDp() })
     ) {
-        // Radio Browser Header Banner
+        // Source Provider Selector Row
+        Text(
+            text = "FUENTE DE EXPLORACIÓN",
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                letterSpacing = 1.2.sp
+            )
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        val providerList = listOf(
+            "Radio-Browser" to "Radio-Browser (+40k)",
+            "iHeartRadio" to "iHeartRadio",
+            "TuneIn" to "TuneIn Directory",
+            "GitHub Raw" to "GitHub Raw (Curadas)"
+        )
+
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(providerList) { (key, title) ->
+                val isSelected = selectedProvider == key
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { viewModel.setRadioProvider(key) },
+                    label = { Text(title, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
+                    modifier = Modifier.testTag("provider_chip_$key"),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Multi-API Header Banner
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
@@ -2033,8 +2076,14 @@ fun DiscoverTab(
                         .background(MaterialTheme.colorScheme.primary),
                     contentAlignment = Alignment.Center
                 ) {
+                    val icon = when (selectedProvider) {
+                        "iHeartRadio" -> Icons.Default.Favorite
+                        "TuneIn" -> Icons.Default.Radio
+                        "GitHub Raw" -> Icons.Default.CloudDownload
+                        else -> Icons.Default.Public
+                    }
                     Icon(
-                        Icons.Default.Public,
+                        icon,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(24.dp)
@@ -2044,13 +2093,25 @@ fun DiscoverTab(
                 Spacer(modifier = Modifier.width(14.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
+                    val title = when (selectedProvider) {
+                        "iHeartRadio" -> "API iHeartRadio"
+                        "TuneIn" -> "Directorio TuneIn"
+                        "GitHub Raw" -> "Listas Curadas (GitHub)"
+                        else -> "Navegador Radio-Browser"
+                    }
+                    val subtitle = when (selectedProvider) {
+                        "iHeartRadio" -> "Emisoras internacionales premium y de alta calidad"
+                        "TuneIn" -> "Catálogo global y presets por identificador"
+                        "GitHub Raw" -> "Lista estática actualizada sin caídas de servidor"
+                        else -> "Explora +40,000 emisoras abiertas de todo el mundo"
+                    }
                     Text(
-                        text = "Navegador Radio-Browser",
+                        text = title,
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
-                        text = "Explora +40,000 emisoras en vivo de todo el mundo",
+                        text = subtitle,
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
