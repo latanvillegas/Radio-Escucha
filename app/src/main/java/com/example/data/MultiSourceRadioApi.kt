@@ -85,6 +85,7 @@ data class TuneInBodyItem(
     @Json(name = "preset_id") val presetId: String = "",
     @Json(name = "type") val type: String = "",
     @Json(name = "item") val item: String = "",
+    @Json(name = "element") val element: String = "",
     @Json(name = "children") val children: List<TuneInBodyItem>? = null
 ) {
     fun toRadioStation(): RadioStation {
@@ -110,13 +111,18 @@ data class TuneInBodyItem(
 }
 
 interface TuneInApiService {
-    @GET("Search.ashx?render=json")
+    @GET("Search.ashx?render=json&partnerId=RadioTime")
     suspend fun searchStations(
         @Query("query") query: String
     ): TuneInOpmlResponse
 
-    @GET("Browse.ashx?c=presets&render=json")
+    @GET("Browse.ashx?c=presets&render=json&partnerId=RadioTime")
     suspend fun getPresets(): TuneInOpmlResponse
+
+    @GET("Tune.ashx?render=json&partnerId=RadioTime")
+    suspend fun tuneStation(
+        @Query("id") id: String
+    ): TuneInOpmlResponse
 }
 
 // ==========================================
@@ -183,6 +189,49 @@ data class SomaFmChannelDto(
 interface SomaFmApiService {
     @GET("channels.json")
     suspend fun getChannels(): SomaFmResponse
+}
+
+// ==========================================
+// 6. FMStream Directory API Models & Service
+// ==========================================
+data class FmStreamStationDto(
+    @Json(name = "id") val id: Long = 0L,
+    @Json(name = "name") val name: String = "",
+    @Json(name = "url") val url: String = "",
+    @Json(name = "stream") val stream: String = "",
+    @Json(name = "logo") val logo: String = "",
+    @Json(name = "icon") val icon: String = "",
+    @Json(name = "genre") val genre: String = "",
+    @Json(name = "style") val style: String = "",
+    @Json(name = "country") val country: String = "",
+    @Json(name = "city") val city: String = "",
+    @Json(name = "bitrate") val bitrate: Int = 0
+) {
+    fun toRadioStation(): RadioStation {
+        val streamUrl = stream.ifBlank { url }
+        val logoUrl = logo.ifBlank { icon }
+        val genreStr = genre.ifBlank { style }.ifBlank { "FMStream Live" }
+        return RadioStation(
+            id = if (id > 0) (id + 98000).toInt() else (name.hashCode() and 0x7FFFFFFF),
+            name = name.ifBlank { "FMStream Station" },
+            url = streamUrl,
+            genre = genreStr,
+            isFavorite = false,
+            isCustom = true,
+            country = country.ifBlank { "Internacional" },
+            region = city.ifBlank { "FMStream Directory" },
+            faviconUrl = logoUrl.trim()
+        )
+    }
+}
+
+interface FmStreamApiService {
+    @GET("index.php")
+    suspend fun searchFmStream(
+        @Query("req") req: String = "search",
+        @Query("q") query: String,
+        @Query("format") format: String = "json"
+    ): List<FmStreamStationDto>
 }
 
 // ==========================================
@@ -272,6 +321,45 @@ object MultiSourceRadioClients {
             .build()
             .create(ITunesSearchApiService::class.java)
     }
+
+    val fmStreamService: FmStreamApiService by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://fmstream.org/")
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(FmStreamApiService::class.java)
+    }
+
+    // Static fallback list of high quality TuneIn streams with verified direct audio links and logos
+    val fallbackTuneInList = listOf(
+        RadioStation(id = 7101, name = "Capital FM London 95.8", url = "https://stream-capital.musicradio.com/capitalmp3", genre = "Top 40 / Pop", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s16535/images/logoq.png"),
+        RadioStation(id = 7102, name = "Heart London 106.2", url = "https://stream-heart.musicradio.com/heartlondon", genre = "Pop / Adult Contemporary", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s16534/images/logoq.png"),
+        RadioStation(id = 7103, name = "LBC News London", url = "https://stream-lbc.musicradio.com/lbcuk", genre = "Noticias / Opinión", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s16538/images/logoq.png"),
+        RadioStation(id = 7104, name = "Smooth Radio UK 97.3", url = "https://stream-smooth.musicradio.com/smoothuk", genre = "Oldies / Relax", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s16537/images/logoq.png"),
+        RadioStation(id = 7105, name = "Absolute Radio UK", url = "https://stream-absolute.planetradio.co.uk/absoluteradio.mp3", genre = "Rock / Indie", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s1219/images/logoq.png"),
+        RadioStation(id = 7106, name = "Classic FM UK", url = "https://stream-media.musicradio.com/ClassicFM", genre = "Música Clásica", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s16536/images/logoq.png"),
+        RadioStation(id = 7107, name = "Kiss FM UK", url = "https://stream-kiss.planetradio.co.uk/kissnational.mp3", genre = "Dance / Urban", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s1218/images/logoq.png"),
+        RadioStation(id = 7108, name = "Radio X London", url = "https://stream-radiox.musicradio.com/radioxuk", genre = "Alternative Rock", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s16539/images/logoq.png"),
+        RadioStation(id = 7109, name = "Gold Radio 60s 70s 80s", url = "https://stream-gold.musicradio.com/golduk", genre = "Clásicos / Retro", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s16533/images/logoq.png"),
+        RadioStation(id = 7110, name = "Jazz FM UK", url = "https://stream-jazz.planetradio.co.uk/jazznational.mp3", genre = "Jazz / Soul / Blues", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s1220/images/logoq.png"),
+        RadioStation(id = 7111, name = "KISS FM España Directo", url = "https://kissfm.kissfm.es/kissfm.mp3", genre = "Pop / Éxitos", country = "España", region = "TuneIn Directory", faviconUrl = "https://www.kissfm.es/wp-content/themes/kissfm/images/logo_kissfm.png"),
+        RadioStation(id = 7112, name = "Radio Disney Internacional", url = "https://27433.live.streamtheworld.com/DISNEY_PER_LM_SC", genre = "Pop / Hits", country = "Internacional", region = "TuneIn Directory", faviconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d2/Radio_Disney_logo.svg/1200px-Radio_Disney_logo.svg.png")
+    )
+
+    // Static fallback list of FMStream curated high quality streams with logos
+    val fallbackFmStreamList = listOf(
+        RadioStation(id = 9801, name = "Cadena SER España", url = "https://21633.live.streamtheworld.com/CADENASER.mp3", genre = "Noticias / Deportes", country = "España", region = "FMStream", faviconUrl = "https://cadenaser.com/static/cadenaser/main/logo.png"),
+        RadioStation(id = 9802, name = "Radio Disney Latinoamérica", url = "https://27433.live.streamtheworld.com/DISNEY_PER_LM_SC", genre = "Pop / Hits", country = "Perú", region = "FMStream", faviconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d2/Radio_Disney_logo.svg/1200px-Radio_Disney_logo.svg.png"),
+        RadioStation(id = 9803, name = "Studio 92", url = "https://26503.live.streamtheworld.com/STUDIO92_AAC.aac", genre = "Pop / Rock / Urbano", country = "Perú", region = "FMStream", faviconUrl = "https://e.rpp-noticias.io/static/images/s92-logo.png"),
+        RadioStation(id = 9804, name = "Z Rock & Pop", url = "https://26503.live.streamtheworld.com/Z_ROCKANDPOP_AAC.aac", genre = "Classic Rock / 80s 90s", country = "Perú", region = "FMStream", faviconUrl = "https://cr00.epimg.net/radio/imagenes/2020/03/30/logo_z.png"),
+        RadioStation(id = 9805, name = "Alfa 91.3 México", url = "https://18323.live.streamtheworld.com/XHFAJ_FM.mp3", genre = "Pop / Top 40", country = "México", region = "FMStream", faviconUrl = "https://alfa913.com.mx/static/images/logo.png"),
+        RadioStation(id = 9806, name = "W Radio México", url = "https://18323.live.streamtheworld.com/XEW_AM.mp3", genre = "Noticias / Hablemos", country = "México", region = "FMStream", faviconUrl = "https://wradio.com.mx/static/wradio/main/logo.png"),
+        RadioStation(id = 9807, name = "Rock & Pop Chile", url = "https://21633.live.streamtheworld.com/ROCK_AND_POP.mp3", genre = "Rock & Pop", country = "Chile", region = "FMStream", faviconUrl = "https://www.rockandpop.cl/static/rockandpop/main/logo.png"),
+        RadioStation(id = 9808, name = "FM Dos Chile", url = "https://24393.live.streamtheworld.com/FMDOS.mp3", genre = "Romántica / Pop", country = "Chile", region = "FMStream", faviconUrl = "https://www.fmdos.cl/static/fmdos/main/logo.png"),
+        RadioStation(id = 9809, name = "Radio Marca España", url = "https://radiomarca.unidadeditorial.es/stream", genre = "Deportes", country = "España", region = "FMStream", faviconUrl = "https://e00-marca.uecdn.es/assets/v23/img/logo-marca.png"),
+        RadioStation(id = 9810, name = "BBC World Service", url = "https://stream.live.vc.bbcmedia.co.uk/bbc_world_service", genre = "Noticias Internacionales", country = "Reino Unido", region = "FMStream", faviconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/BBC_World_Service_2022.svg/1200px-BBC_World_Service_2022.svg.png")
+    )
 
     // Static fallback list of high-quality GitHub Raw Curated radios
     val fallbackGitHubCuratedList = listOf(

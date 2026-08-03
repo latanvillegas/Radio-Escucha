@@ -2244,6 +2244,7 @@ fun DiscoverTab(
         val providerList = listOf(
             "Todas" to "Todas las fuentes (Búsqueda Unificada)",
             "Radio-Browser" to "Radio-Browser (+40k)",
+            "FMStream" to "FMStream Directory",
             "iHeartRadio" to "iHeartRadio",
             "TuneIn" to "TuneIn Directory",
             "SomaFM" to "SomaFM (Indie/Ambient)",
@@ -2298,6 +2299,7 @@ fun DiscoverTab(
                 ) {
                     val icon = when (selectedProvider) {
                         "Todas" -> Icons.Default.Public
+                        "FMStream" -> Icons.Default.Radio
                         "iHeartRadio" -> Icons.Default.Favorite
                         "TuneIn" -> Icons.Default.Radio
                         "SomaFM" -> Icons.Default.GraphicEq
@@ -2317,6 +2319,7 @@ fun DiscoverTab(
                 Column(modifier = Modifier.weight(1f)) {
                     val title = when (selectedProvider) {
                         "Todas" -> "Búsqueda Unificada (Todas las APIs)"
+                        "FMStream" -> "Directorio FMStream"
                         "iHeartRadio" -> "API iHeartRadio"
                         "TuneIn" -> "Directorio TuneIn"
                         "SomaFM" -> "SomaFM Independent Radio"
@@ -2324,7 +2327,8 @@ fun DiscoverTab(
                         else -> "Navegador Radio-Browser"
                     }
                     val subtitle = when (selectedProvider) {
-                        "Todas" -> "Busca en tiempo real simultáneamente en Radio-Browser, iHeart, TuneIn, SomaFM y GitHub"
+                        "Todas" -> "Busca en tiempo real simultáneamente en Radio-Browser, FMStream, iHeart, TuneIn, SomaFM y GitHub"
+                        "FMStream" -> "Directorio global de transmisiones FM con logos e información detallada"
                         "iHeartRadio" -> "Emisoras internacionales premium y de alta calidad"
                         "TuneIn" -> "Catálogo global y presets por identificador"
                         "SomaFM" -> "Radio independiente sin anuncios, ambient, lounge y electrónica"
