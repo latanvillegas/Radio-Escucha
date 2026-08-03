@@ -65,67 +65,6 @@ interface IHeartApiService {
 }
 
 // ==========================================
-// 2. TuneIn OPML JSON API Models & Service
-// ==========================================
-data class TuneInOpmlResponse(
-    @Json(name = "head") val head: TuneInHead? = null,
-    @Json(name = "body") val body: List<TuneInBodyItem>? = null
-)
-
-data class TuneInHead(
-    @Json(name = "title") val title: String = "",
-    @Json(name = "status") val status: String = ""
-)
-
-data class TuneInBodyItem(
-    @Json(name = "text") val text: String = "",
-    @Json(name = "URL") val url: String = "",
-    @Json(name = "subtext") val subtext: String = "",
-    @Json(name = "image") val image: String = "",
-    @Json(name = "preset_id") val presetId: String = "",
-    @Json(name = "type") val type: String = "",
-    @Json(name = "item") val item: String = "",
-    @Json(name = "element") val element: String = "",
-    @Json(name = "children") val children: List<TuneInBodyItem>? = null
-) {
-    fun toRadioStation(): RadioStation {
-        val cleanUrl = if (url.startsWith("http://opml.radiotime.com/Tune.ashx")) {
-            url
-        } else if (presetId.isNotBlank()) {
-            "http://opml.radiotime.com/Tune.ashx?id=$presetId"
-        } else {
-            url
-        }
-        return RadioStation(
-            id = (text.hashCode() and 0x7FFFFFFF),
-            name = text.ifBlank { "TuneIn Station" },
-            url = cleanUrl,
-            genre = subtext.ifBlank { "TuneIn Global" },
-            isFavorite = false,
-            isCustom = true,
-            country = "Internacional",
-            region = "TuneIn",
-            faviconUrl = image.trim()
-        )
-    }
-}
-
-interface TuneInApiService {
-    @GET("Search.ashx?render=json&partnerId=RadioTime")
-    suspend fun searchStations(
-        @Query("query") query: String
-    ): TuneInOpmlResponse
-
-    @GET("Browse.ashx?c=presets&render=json&partnerId=RadioTime")
-    suspend fun getPresets(): TuneInOpmlResponse
-
-    @GET("Tune.ashx?render=json&partnerId=RadioTime")
-    suspend fun tuneStation(
-        @Query("id") id: String
-    ): TuneInOpmlResponse
-}
-
-// ==========================================
 // 3. GitHub Raw JSON Curated List Model & Service
 // ==========================================
 data class GitHubRadioItem(
@@ -286,15 +225,6 @@ object MultiSourceRadioClients {
             .create(IHeartApiService::class.java)
     }
 
-    val tuneInService: TuneInApiService by lazy {
-        Retrofit.Builder()
-            .baseUrl("https://opml.radiotime.com/")
-            .client(okHttpClient)
-            .addConverterFactory(MoshiConverterFactory.create(moshi))
-            .build()
-            .create(TuneInApiService::class.java)
-    }
-
     val gitHubService: GitHubRadioApiService by lazy {
         Retrofit.Builder()
             .baseUrl("https://raw.githubusercontent.com/")
@@ -330,22 +260,6 @@ object MultiSourceRadioClients {
             .build()
             .create(FmStreamApiService::class.java)
     }
-
-    // Static fallback list of high quality TuneIn streams with verified direct audio links and logos
-    val fallbackTuneInList = listOf(
-        RadioStation(id = 7101, name = "Capital FM London 95.8", url = "https://stream-capital.musicradio.com/capitalmp3", genre = "Top 40 / Pop", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s16535/images/logoq.png"),
-        RadioStation(id = 7102, name = "Heart London 106.2", url = "https://stream-heart.musicradio.com/heartlondon", genre = "Pop / Adult Contemporary", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s16534/images/logoq.png"),
-        RadioStation(id = 7103, name = "LBC News London", url = "https://stream-lbc.musicradio.com/lbcuk", genre = "Noticias / Opinión", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s16538/images/logoq.png"),
-        RadioStation(id = 7104, name = "Smooth Radio UK 97.3", url = "https://stream-smooth.musicradio.com/smoothuk", genre = "Oldies / Relax", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s16537/images/logoq.png"),
-        RadioStation(id = 7105, name = "Absolute Radio UK", url = "https://stream-absolute.planetradio.co.uk/absoluteradio.mp3", genre = "Rock / Indie", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s1219/images/logoq.png"),
-        RadioStation(id = 7106, name = "Classic FM UK", url = "https://stream-media.musicradio.com/ClassicFM", genre = "Música Clásica", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s16536/images/logoq.png"),
-        RadioStation(id = 7107, name = "Kiss FM UK", url = "https://stream-kiss.planetradio.co.uk/kissnational.mp3", genre = "Dance / Urban", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s1218/images/logoq.png"),
-        RadioStation(id = 7108, name = "Radio X London", url = "https://stream-radiox.musicradio.com/radioxuk", genre = "Alternative Rock", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s16539/images/logoq.png"),
-        RadioStation(id = 7109, name = "Gold Radio 60s 70s 80s", url = "https://stream-gold.musicradio.com/golduk", genre = "Clásicos / Retro", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s16533/images/logoq.png"),
-        RadioStation(id = 7110, name = "Jazz FM UK", url = "https://stream-jazz.planetradio.co.uk/jazznational.mp3", genre = "Jazz / Soul / Blues", country = "Reino Unido", region = "TuneIn Directory", faviconUrl = "https://cdn-profiles.tunein.com/s1220/images/logoq.png"),
-        RadioStation(id = 7111, name = "KISS FM España Directo", url = "https://kissfm.kissfm.es/kissfm.mp3", genre = "Pop / Éxitos", country = "España", region = "TuneIn Directory", faviconUrl = "https://www.kissfm.es/wp-content/themes/kissfm/images/logo_kissfm.png"),
-        RadioStation(id = 7112, name = "Radio Disney Internacional", url = "https://27433.live.streamtheworld.com/DISNEY_PER_LM_SC", genre = "Pop / Hits", country = "Internacional", region = "TuneIn Directory", faviconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d2/Radio_Disney_logo.svg/1200px-Radio_Disney_logo.svg.png")
-    )
 
     // Static fallback list of FMStream curated high quality streams with logos
     val fallbackFmStreamList = listOf(

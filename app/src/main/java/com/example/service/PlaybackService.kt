@@ -334,23 +334,7 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private suspend fun playStationInService(station: RadioStation) {
-        val playableUrl = if (station.url.contains("Tune.ashx") || station.url.contains("radiotime.com")) {
-            try {
-                val uri = android.net.Uri.parse(station.url)
-                val presetId = uri.getQueryParameter("id") ?: ""
-                if (presetId.isNotBlank()) {
-                    val response = MultiSourceRadioClients.tuneInService.tuneStation(presetId)
-                    val directStream = response.body?.firstOrNull { 
-                        it.element == "url" || (it.url.isNotBlank() && it.url.startsWith("http"))
-                    }?.url
-                    directStream.takeIf { !it.isNullOrBlank() } ?: station.url
-                } else station.url
-            } catch (e: Exception) {
-                station.url
-            }
-        } else {
-            station.url
-        }
+        val playableUrl = station.url
 
         repository.insertHistory(station)
 

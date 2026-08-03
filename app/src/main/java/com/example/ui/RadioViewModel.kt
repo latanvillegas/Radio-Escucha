@@ -142,7 +142,7 @@ class RadioViewModel(
     private val _sleepSecondsLeft = MutableStateFlow<Int?>(null)
     val sleepSecondsLeft: StateFlow<Int?> = _sleepSecondsLeft.asStateFlow()
 
-    // Radio Provider selection ("Todas", "Radio-Browser", "iHeartRadio", "TuneIn", "SomaFM", "GitHub Raw")
+    // Radio Provider selection ("Todas", "Radio-Browser", "iHeartRadio", "SomaFM", "GitHub Raw", "FMStream")
     private val _selectedRadioProvider = MutableStateFlow("Todas")
     val selectedRadioProvider: StateFlow<String> = _selectedRadioProvider.asStateFlow()
 
@@ -232,23 +232,7 @@ class RadioViewModel(
         viewModelScope.launch {
             repository.insertHistory(station)
 
-            val playableUrl = if (station.url.contains("Tune.ashx") || station.url.contains("radiotime.com")) {
-                try {
-                    val uri = android.net.Uri.parse(station.url)
-                    val presetId = uri.getQueryParameter("id") ?: ""
-                    if (presetId.isNotBlank()) {
-                        val response = MultiSourceRadioClients.tuneInService.tuneStation(presetId)
-                        val directStream = response.body?.firstOrNull { 
-                            it.element == "url" || (it.url.isNotBlank() && it.url.startsWith("http"))
-                        }?.url
-                        directStream.takeIf { !it.isNullOrBlank() } ?: station.url
-                    } else station.url
-                } catch (e: Exception) {
-                    station.url
-                }
-            } else {
-                station.url
-            }
+            val playableUrl = station.url
 
             mediaController?.let { player ->
                 try {
@@ -541,7 +525,6 @@ class RadioViewModel(
         when (provider) {
             "Todas" -> performGlobalMultiApiSearch(query)
             "iHeartRadio" -> fetchIHeartRadioStations(query)
-            "TuneIn" -> fetchTuneInStations(query)
             "GitHub Raw" -> fetchGitHubCuratedStations(query)
             "SomaFM" -> fetchSomaFmStations(query)
             "FMStream" -> fetchFmStreamStations(query)
@@ -790,7 +773,6 @@ class RadioViewModel(
         when (provider) {
             "Todas" -> performGlobalMultiApiSearch(query)
             "iHeartRadio" -> fetchIHeartRadioStations(query)
-            "TuneIn" -> fetchTuneInStations(query)
             "GitHub Raw" -> fetchGitHubCuratedStations(query)
             "SomaFM" -> fetchSomaFmStations(query)
             "FMStream" -> fetchFmStreamStations(query)
@@ -877,43 +859,7 @@ class RadioViewModel(
                     } catch (e: Exception) { emptyList() }
                 }
 
-                // 5. TuneIn
-                val tuneInDeferred = async {
-                    try {
-                        val response = if (q.isNotBlank()) {
-                            MultiSourceRadioClients.tuneInService.searchStations(q)
-                        } else {
-                            MultiSourceRadioClients.tuneInService.getPresets()
-                        }
-                        val body = response.body ?: emptyList()
-                        val list = mutableListOf<RadioStation>()
-                        fun parse(items: List<TuneInBodyItem>) {
-                            for (item in items) {
-                                if (item.type == "audio" || item.item == "station" || item.presetId.isNotBlank()) {
-                                    list.add(item.toRadioStation())
-                                }
-                                item.children?.let { parse(it) }
-                            }
-                        }
-                        parse(body)
-                        val fallbackFiltered = MultiSourceRadioClients.fallbackTuneInList.filter {
-                            it.name.containsNormalized(q) ||
-                            it.genre.containsNormalized(q) ||
-                            it.country.containsNormalized(q) ||
-                            it.region.containsNormalized(q)
-                        }
-                        (list + fallbackFiltered).distinctBy { (it.name.lowercase().trim()) to (it.url.lowercase().trim()) }
-                    } catch (e: Exception) {
-                        MultiSourceRadioClients.fallbackTuneInList.filter {
-                            it.name.containsNormalized(q) ||
-                            it.genre.containsNormalized(q) ||
-                            it.country.containsNormalized(q) ||
-                            it.region.containsNormalized(q)
-                        }
-                    }
-                }
-
-                // 6. FMStream Directory
+                // 5. FMStream Directory
                 val fmDeferred = async {
                     try {
                         val apiResults = if (q.isNotBlank()) {
@@ -946,10 +892,9 @@ class RadioViewModel(
                 val ghList = ghDeferred.await()
                 val somaList = somaDeferred.await()
                 val ihList = iHeartDeferred.await()
-                val tuneList = tuneInDeferred.await()
                 val fmList = fmDeferred.await()
 
-                val combined = (rbList + ghList + somaList + ihList + tuneList + fmList)
+                val combined = (rbList + ghList + somaList + ihList + fmList)
                     .distinctBy { (it.name.lowercase().trim()) to (it.url.lowercase().trim()) }
 
                 _radioBrowserStations.value = combined
@@ -1033,53 +978,6 @@ class RadioViewModel(
                     it.genre.containsNormalized(q) ||
                     it.country.containsNormalized(q)
                 }
-                _radioBrowserError.value = null
-            } finally {
-                _radioBrowserLoading.value = false
-            }
-        }
-    }
-
-    private fun fetchTuneInStations(query: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            _radioBrowserLoading.value = true
-            _radioBrowserError.value = null
-            try {
-                val q = query.trim()
-                val response = if (q.isNotBlank()) {
-                    MultiSourceRadioClients.tuneInService.searchStations(q)
-                } else {
-                    MultiSourceRadioClients.tuneInService.getPresets()
-                }
-                val body = response.body ?: emptyList()
-                val stations = mutableListOf<RadioStation>()
-                fun parseItems(items: List<TuneInBodyItem>) {
-                    for (item in items) {
-                        if (item.type == "audio" || item.item == "station" || item.presetId.isNotBlank()) {
-                            stations.add(item.toRadioStation())
-                        }
-                        item.children?.let { parseItems(it) }
-                    }
-                }
-                parseItems(body)
-                val fallbackFiltered = MultiSourceRadioClients.fallbackTuneInList.filter {
-                    it.name.containsNormalized(q) ||
-                    it.genre.containsNormalized(q) ||
-                    it.country.containsNormalized(q) ||
-                    it.region.containsNormalized(q)
-                }
-                _radioBrowserStations.value = (stations + fallbackFiltered).distinctBy { (it.name.lowercase().trim()) to (it.url.lowercase().trim()) }
-            } catch (e: Exception) {
-                val q = query.trim()
-                val fallback = if (q.isBlank()) MultiSourceRadioClients.fallbackTuneInList else {
-                    MultiSourceRadioClients.fallbackTuneInList.filter {
-                        it.name.containsNormalized(q) ||
-                        it.genre.containsNormalized(q) ||
-                        it.country.containsNormalized(q) ||
-                        it.region.containsNormalized(q)
-                    }
-                }
-                _radioBrowserStations.value = fallback.ifEmpty { MultiSourceRadioClients.fallbackTuneInList }
                 _radioBrowserError.value = null
             } finally {
                 _radioBrowserLoading.value = false
