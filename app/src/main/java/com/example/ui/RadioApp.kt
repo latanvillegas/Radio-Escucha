@@ -755,29 +755,57 @@ fun PlaybackDashboard(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Album Cover Image or Rotating Disc
-                    if (!currentTrackArtworkUrl.isNullOrBlank()) {
+                    // Album Cover Image, Station Profile Logo, or Rotating Disc
+                    val displayArt = when {
+                        !currentTrackArtworkUrl.isNullOrBlank() -> currentTrackArtworkUrl
+                        currentStation != null && currentStation.faviconUrl.isNotBlank() -> currentStation.faviconUrl
+                        else -> null
+                    }
+
+                    if (displayArt != null) {
                         Box(
                             modifier = Modifier
-                                .size(68.dp)
-                                .clip(RoundedCornerShape(16.dp))
+                                .size(72.dp)
+                                .clip(RoundedCornerShape(18.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant),
                             contentAlignment = Alignment.Center
                         ) {
                             coil.compose.AsyncImage(
-                                model = currentTrackArtworkUrl,
-                                contentDescription = "Carátula de álbum",
+                                model = displayArt,
+                                contentDescription = "Carátula / Logo",
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .clip(RoundedCornerShape(16.dp)),
+                                    .clip(RoundedCornerShape(18.dp)),
                                 contentScale = androidx.compose.ui.layout.ContentScale.Crop
                             )
+
+                            // If showing track artwork AND station has a profile logo, show station logo badge in corner
+                            if (!currentTrackArtworkUrl.isNullOrBlank() && currentStation != null && currentStation.faviconUrl.isNotBlank()) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .padding(3.dp)
+                                        .size(22.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.surface)
+                                        .padding(1.dp)
+                                ) {
+                                    coil.compose.AsyncImage(
+                                        model = currentStation.faviconUrl,
+                                        contentDescription = "Logo de ${currentStation.name}",
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(CircleShape),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                    )
+                                }
+                            }
                         }
                     } else {
                         // Left Side: Rotating Disc
                         Box(
                             modifier = Modifier
-                                .size(60.dp)
+                                .size(64.dp)
                                 .rotate(animatedAngle)
                                 .clip(CircleShape)
                                 .background(
@@ -794,7 +822,7 @@ fun PlaybackDashboard(
                             // Center inner label
                             Box(
                                 modifier = Modifier
-                                    .size(26.dp)
+                                    .size(28.dp)
                                     .clip(CircleShape)
                                     .background(MaterialTheme.colorScheme.surface),
                                 contentAlignment = Alignment.Center
@@ -802,7 +830,7 @@ fun PlaybackDashboard(
                                 Icon(
                                     Icons.Default.Radio,
                                     contentDescription = null,
-                                    modifier = Modifier.size(12.dp),
+                                    modifier = Modifier.size(14.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                             }
@@ -1165,31 +1193,56 @@ fun StationItem(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Radio circle thumbnail representing HTML mockup avatar
+            // Radio thumbnail with profile logo or icon
             Box(
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(48.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(
-                        if (isPlaying) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant
+                        if (isPlaying) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                if (isPlaying && !isBuffering) {
-                    // Mini jumping equalizer
-                    MiniVisualizer(color = MaterialTheme.colorScheme.primary)
-                } else if (isBuffering) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.primary
+                if (station.faviconUrl.isNotBlank()) {
+                    coil.compose.AsyncImage(
+                        model = station.faviconUrl,
+                        contentDescription = "Logo de ${station.name}",
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(12.dp)),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
                     )
-                } else {
+                }
+
+                // Overlay for playing/buffering states or play button
+                if (isPlaying && !isBuffering) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.45f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        MiniVisualizer(color = Color.White)
+                    }
+                } else if (isBuffering) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.45f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White
+                        )
+                    }
+                } else if (station.faviconUrl.isBlank()) {
                     Icon(
-                        Icons.Default.PlayArrow,
+                        Icons.Default.Radio,
                         contentDescription = null,
-                        tint = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }

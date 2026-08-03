@@ -14,5 +14,6 @@ data class RadioStation(
     val country: String = "",
     val region: String = "",
     val province: String = "",
-    val district: String = ""
+    val district: String = "",
+    val faviconUrl: String = ""
 )

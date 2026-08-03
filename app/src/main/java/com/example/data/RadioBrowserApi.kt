@@ -44,7 +44,8 @@ data class RadioBrowserStationDto(
             isFavorite = false,
             isCustom = true,
             country = country.trim(),
-            region = state.trim()
+            region = state.trim(),
+            faviconUrl = favicon.trim()
         )
     }
 }

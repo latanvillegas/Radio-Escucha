@@ -46,7 +46,8 @@ data class IHeartStationDto(
             isFavorite = false,
             isCustom = true,
             country = marketName.ifBlank { "International" },
-            region = "iHeartMedia"
+            region = "iHeartMedia",
+            faviconUrl = logo.trim()
         )
     }
 }
@@ -102,7 +103,8 @@ data class TuneInBodyItem(
             isFavorite = false,
             isCustom = true,
             country = "Internacional",
-            region = "TuneIn"
+            region = "TuneIn",
+            faviconUrl = image.trim()
         )
     }
 }
@@ -136,7 +138,8 @@ data class GitHubRadioItem(
             isFavorite = false,
             isCustom = true,
             country = country.trim().ifBlank { "Mundial" },
-            region = "Curada (Sin caídas)"
+            region = "Curada (Sin caídas)",
+            faviconUrl = favicon.trim()
         )
     }
 }
@@ -171,7 +174,8 @@ data class SomaFmChannelDto(
             isFavorite = false,
             isCustom = true,
             country = "Estados Unidos (San Francisco)",
-            region = "SomaFM Radio"
+            region = "SomaFM Radio",
+            faviconUrl = image.trim()
         )
     }
 }
@@ -271,19 +275,19 @@ object MultiSourceRadioClients {
 
     // Static fallback list of high-quality GitHub Raw Curated radios
     val fallbackGitHubCuratedList = listOf(
-        RadioStation(id = 9001, name = "BBC Radio 1", url = "https://stream.live.vc.bbcmedia.co.uk/bbc_radio_one", genre = "Pop / Hits", country = "Reino Unido", region = "GitHub Curada"),
-        RadioStation(id = 9002, name = "Capital FM London", url = "https://stream-capital.musicradio.com/capitalmp3", genre = "Top 40", country = "Reino Unido", region = "GitHub Curada"),
-        RadioStation(id = 9003, name = "Kiss FM España", url = "https://kissfm.kissfm.es/kissfm.mp3", genre = "Pop Classics", country = "España", region = "GitHub Curada"),
-        RadioStation(id = 9004, name = "Los 40 Principales España", url = "https://21633.live.streamtheworld.com/LOS40_ES.mp3", genre = "Pop / Latino", country = "España", region = "GitHub Curada"),
-        RadioStation(id = 9005, name = "Radio Cadena 3 Argentina", url = "https://cadena3.cdn.352media.net/cadena3.mp3", genre = "Noticias / Variado", country = "Argentina", region = "GitHub Curada"),
-        RadioStation(id = 9006, name = "NPR News Live", url = "https://npr-ice.streamguys1.com/live.mp3", genre = "Noticias / Talk", country = "Estados Unidos", region = "GitHub Curada"),
-        RadioStation(id = 9007, name = "KEXP Seattle", url = "https://kexp-mp3-128.streamguys1.com/kexp128.mp3", genre = "Indie / Alternative", country = "Estados Unidos", region = "GitHub Curada"),
-        RadioStation(id = 9008, name = "Classic FM UK", url = "https://stream-media.musicradio.com/ClassicFM", genre = "Clásica", country = "Reino Unido", region = "GitHub Curada"),
-        RadioStation(id = 9009, name = "Radio M80 / RockFM", url = "https://25623.live.streamtheworld.com/ROCKFM_ES.mp3", genre = "Rock", country = "España", region = "GitHub Curada"),
-        RadioStation(id = 9010, name = "Salsa Radio Miami", url = "https://stream.zeno.fm/5q098s46z68uv", genre = "Salsa / Tropical", country = "Estados Unidos", region = "GitHub Curada"),
-        RadioStation(id = 9011, name = "Radio Programas del Perú (RPP)", url = "https://17803.live.streamtheworld.com/RPP_AAC.aac", genre = "Noticias / Perú", country = "Perú", region = "GitHub Curada"),
-        RadioStation(id = 9012, name = "Radio Moda Perú", url = "https://24423.live.streamtheworld.com/RADIO_MODA_AAC.aac", genre = "Reggaeton / Trap", country = "Perú", region = "GitHub Curada"),
-        RadioStation(id = 9013, name = "Radio Ritmo Romántica", url = "https://26503.live.streamtheworld.com/R_RITMO_ROMANTICA_AAC.aac", genre = "Baladas / Romántica", country = "Perú", region = "GitHub Curada"),
-        RadioStation(id = 9014, name = "Ibiza Global Radio", url = "https://ibizaglobalradio.icfstream.com/ibizaglobalradio.mp3", genre = "Electrónica / House", country = "España", region = "GitHub Curada")
+        RadioStation(id = 9001, name = "BBC Radio 1", url = "https://stream.live.vc.bbcmedia.co.uk/bbc_radio_one", genre = "Pop / Hits", country = "Reino Unido", region = "GitHub Curada", faviconUrl = "https://a1.sndcdn.com/images/default_avatar_large.png"),
+        RadioStation(id = 9002, name = "Capital FM London", url = "https://stream-capital.musicradio.com/capitalmp3", genre = "Top 40", country = "Reino Unido", region = "GitHub Curada", faviconUrl = "https://static.wikia.nocities.org/radio/images/f/f6/Capital_FM_logo.png/revision/latest?cb=20180424203531"),
+        RadioStation(id = 9003, name = "Kiss FM España", url = "https://kissfm.kissfm.es/kissfm.mp3", genre = "Pop Classics", country = "España", region = "GitHub Curada", faviconUrl = "https://www.kissfm.es/wp-content/themes/kissfm/images/logo_kissfm.png"),
+        RadioStation(id = 9004, name = "Los 40 Principales España", url = "https://21633.live.streamtheworld.com/LOS40_ES.mp3", genre = "Pop / Latino", country = "España", region = "GitHub Curada", faviconUrl = "https://los40.com/static/LOS40/main/logo.png"),
+        RadioStation(id = 9005, name = "Radio Cadena 3 Argentina", url = "https://cadena3.cdn.352media.net/cadena3.mp3", genre = "Noticias / Variado", country = "Argentina", region = "GitHub Curada", faviconUrl = "https://www.cadena3.com/images/cadena3_logo.png"),
+        RadioStation(id = 9006, name = "NPR News Live", url = "https://npr-ice.streamguys1.com/live.mp3", genre = "Noticias / Talk", country = "Estados Unidos", region = "GitHub Curada", faviconUrl = "https://media.npr.org/chrome/news/npr-logo.png"),
+        RadioStation(id = 9007, name = "KEXP Seattle", url = "https://kexp-mp3-128.streamguys1.com/kexp128.mp3", genre = "Indie / Alternative", country = "Estados Unidos", region = "GitHub Curada", faviconUrl = "https://www.kexp.org/static/assets/img/kexp-logo.png"),
+        RadioStation(id = 9008, name = "Classic FM UK", url = "https://stream-media.musicradio.com/ClassicFM", genre = "Clásica", country = "Reino Unido", region = "GitHub Curada", faviconUrl = "https://www.classicfm.com/assets_v4/classicfm/images/logo.png"),
+        RadioStation(id = 9009, name = "Radio M80 / RockFM", url = "https://25623.live.streamtheworld.com/ROCKFM_ES.mp3", genre = "Rock", country = "España", region = "GitHub Curada", faviconUrl = "https://www.rockfm.fm/assets/images/logo-rockfm.png"),
+        RadioStation(id = 9010, name = "Salsa Radio Miami", url = "https://stream.zeno.fm/5q098s46z68uv", genre = "Salsa / Tropical", country = "Estados Unidos", region = "GitHub Curada", faviconUrl = "https://zeno.fm/static/media/zeno-logo.png"),
+        RadioStation(id = 9011, name = "Radio Programas del Perú (RPP)", url = "https://17803.live.streamtheworld.com/RPP_AAC.aac", genre = "Noticias / Perú", country = "Perú", region = "GitHub Curada", faviconUrl = "https://e.rpp-noticias.io/static/images/rpp-logo.png"),
+        RadioStation(id = 9012, name = "Radio Moda Perú", url = "https://24423.live.streamtheworld.com/RADIO_MODA_AAC.aac", genre = "Reggaeton / Trap", country = "Perú", region = "GitHub Curada", faviconUrl = "https://cr00.epimg.net/radio/imagenes/2020/03/30/logo_moda.png"),
+        RadioStation(id = 9013, name = "Radio Ritmo Romántica", url = "https://26503.live.streamtheworld.com/R_RITMO_ROMANTICA_AAC.aac", genre = "Baladas / Romántica", country = "Perú", region = "GitHub Curada", faviconUrl = "https://cr00.epimg.net/radio/imagenes/2020/03/30/logo_ritmoromantica.png"),
+        RadioStation(id = 9014, name = "Ibiza Global Radio", url = "https://ibizaglobalradio.icfstream.com/ibizaglobalradio.mp3", genre = "Electrónica / House", country = "España", region = "GitHub Curada", faviconUrl = "https://ibizaglobalradio.com/wp-content/uploads/2021/04/IGR_LOGO.png")
     )
 }

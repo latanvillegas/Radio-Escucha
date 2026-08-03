@@ -259,27 +259,55 @@ class RadioViewModel(
     private var artworkSearchJob: Job? = null
 
     private fun updateTrackMetadata(mediaMetadata: androidx.media3.common.MediaMetadata) {
-        val titleStr = mediaMetadata.title?.toString()
+        val rawTitle = mediaMetadata.title?.toString()
             ?: mediaMetadata.displayTitle?.toString()
             ?: mediaMetadata.subtitle?.toString()
-        val artistStr = mediaMetadata.artist?.toString()
+            ?: mediaMetadata.description?.toString()
+        val rawArtist = mediaMetadata.artist?.toString()
+            ?: mediaMetadata.albumArtist?.toString()
+
+        val currentName = _currentStation.value?.name ?: ""
+        val currentGenre = _currentStation.value?.genre ?: ""
 
         var extractedTitle: String? = null
         var extractedArtist: String? = null
 
-        val currentName = _currentStation.value?.name
-        val currentGenre = _currentStation.value?.genre
+        // Direct artwork from metadata if stream provides it
+        mediaMetadata.artworkUri?.toString()?.let { uriStr ->
+            if (uriStr.isNotBlank()) {
+                _currentTrackArtworkUrl.value = uriStr
+            }
+        }
 
-        if (!artistStr.isNullOrBlank() && artistStr != currentGenre) {
-            extractedArtist = artistStr.trim()
-            extractedTitle = titleStr?.trim()
-        } else if (!titleStr.isNullOrBlank() && titleStr != currentName) {
-            if (titleStr.contains(" - ")) {
-                val parts = titleStr.split(" - ", limit = 2)
-                extractedArtist = parts[0].trim()
-                extractedTitle = parts[1].trim()
-            } else {
-                extractedTitle = titleStr.trim()
+        if (!rawArtist.isNullOrBlank() && rawArtist != currentGenre && rawArtist != currentName) {
+            extractedArtist = rawArtist.trim()
+            extractedTitle = rawTitle?.trim()
+        } else if (!rawTitle.isNullOrBlank() && rawTitle != currentName) {
+            val titleClean = rawTitle.trim()
+            when {
+                titleClean.contains(" - ") -> {
+                    val parts = titleClean.split(" - ", limit = 2)
+                    extractedArtist = parts[0].trim()
+                    extractedTitle = parts[1].trim()
+                }
+                titleClean.contains(" – ") -> {
+                    val parts = titleClean.split(" – ", limit = 2)
+                    extractedArtist = parts[0].trim()
+                    extractedTitle = parts[1].trim()
+                }
+                titleClean.contains(" : ") -> {
+                    val parts = titleClean.split(" : ", limit = 2)
+                    extractedArtist = parts[0].trim()
+                    extractedTitle = parts[1].trim()
+                }
+                titleClean.contains(" | ") -> {
+                    val parts = titleClean.split(" | ", limit = 2)
+                    extractedArtist = parts[0].trim()
+                    extractedTitle = parts[1].trim()
+                }
+                else -> {
+                    extractedTitle = titleClean
+                }
             }
         }
 
@@ -287,10 +315,18 @@ class RadioViewModel(
             return
         }
 
+        // Clean common prefixes like "Playing: " or "Now Playing: "
+        extractedArtist = extractedArtist?.replace("(?i)^now playing:\\s*".toRegex(), "")
+            ?.replace("(?i)^playing:\\s*".toRegex(), "")?.trim()
+        extractedTitle = extractedTitle?.replace("(?i)^now playing:\\s*".toRegex(), "")
+            ?.replace("(?i)^playing:\\s*".toRegex(), "")?.trim()
+
         _currentTrackTitle.value = extractedTitle
         _currentTrackArtist.value = extractedArtist
 
-        fetchArtwork(extractedArtist, extractedTitle)
+        if (_currentTrackArtworkUrl.value.isNullOrBlank()) {
+            fetchArtwork(extractedArtist, extractedTitle)
+        }
     }
 
     private fun fetchArtwork(artist: String?, song: String?) {
