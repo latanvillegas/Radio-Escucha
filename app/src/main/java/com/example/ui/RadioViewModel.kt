@@ -51,6 +51,15 @@ class RadioViewModel(
     private val _currentStation = MutableStateFlow<RadioStation?>(null)
     val currentStation: StateFlow<RadioStation?> = _currentStation.asStateFlow()
 
+    private val _currentTrackTitle = MutableStateFlow<String?>(null)
+    val currentTrackTitle: StateFlow<String?> = _currentTrackTitle.asStateFlow()
+
+    private val _currentTrackArtist = MutableStateFlow<String?>(null)
+    val currentTrackArtist: StateFlow<String?> = _currentTrackArtist.asStateFlow()
+
+    private val _currentTrackArtworkUrl = MutableStateFlow<String?>(null)
+    val currentTrackArtworkUrl: StateFlow<String?> = _currentTrackArtworkUrl.asStateFlow()
+
     private val _playbackStatus = MutableStateFlow(PlaybackStatus.IDLE)
     val playbackStatus: StateFlow<PlaybackStatus> = _playbackStatus.asStateFlow()
 
@@ -180,10 +189,13 @@ class RadioViewModel(
                         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                             updateStatus()
                         }
+                        override fun onMediaMetadataChanged(mediaMetadata: androidx.media3.common.MediaMetadata) {
+                            updateTrackMetadata(mediaMetadata)
+                        }
                         override fun onPlayerError(error: PlaybackException) {
                             _playbackStatus.value = PlaybackStatus.ERROR
-                            _errorMessage.value = "Error de red o stream no disponible"
-                            _currentStation.value = null
+                            val stationName = _currentStation.value?.name ?: "esta emisora"
+                            _errorMessage.value = "La emisora '$stationName' no responde o el servidor está caído."
                         }
                     })
                     mediaController?.volume = _volume.value
@@ -212,6 +224,9 @@ class RadioViewModel(
         _errorMessage.value = null
         _currentStation.value = station
         _playbackStatus.value = PlaybackStatus.BUFFERING
+        _currentTrackTitle.value = null
+        _currentTrackArtist.value = null
+        _currentTrackArtworkUrl.value = null
         
         viewModelScope.launch {
             repository.insertHistory(station)
@@ -221,7 +236,7 @@ class RadioViewModel(
             try {
                 player.stop()
                 player.clearMediaItems()
-                                val mediaItem = MediaItem.Builder()
+                val mediaItem = MediaItem.Builder()
                     .setUri(station.url)
                     .setMediaId(station.id.toString())
                     .setMediaMetadata(
@@ -241,9 +256,72 @@ class RadioViewModel(
         }
     }
 
+    private var artworkSearchJob: Job? = null
+
+    private fun updateTrackMetadata(mediaMetadata: androidx.media3.common.MediaMetadata) {
+        val titleStr = mediaMetadata.title?.toString()
+            ?: mediaMetadata.displayTitle?.toString()
+            ?: mediaMetadata.subtitle?.toString()
+        val artistStr = mediaMetadata.artist?.toString()
+
+        var extractedTitle: String? = null
+        var extractedArtist: String? = null
+
+        val currentName = _currentStation.value?.name
+        val currentGenre = _currentStation.value?.genre
+
+        if (!artistStr.isNullOrBlank() && artistStr != currentGenre) {
+            extractedArtist = artistStr.trim()
+            extractedTitle = titleStr?.trim()
+        } else if (!titleStr.isNullOrBlank() && titleStr != currentName) {
+            if (titleStr.contains(" - ")) {
+                val parts = titleStr.split(" - ", limit = 2)
+                extractedArtist = parts[0].trim()
+                extractedTitle = parts[1].trim()
+            } else {
+                extractedTitle = titleStr.trim()
+            }
+        }
+
+        if (extractedTitle.isNullOrBlank() && extractedArtist.isNullOrBlank()) {
+            return
+        }
+
+        _currentTrackTitle.value = extractedTitle
+        _currentTrackArtist.value = extractedArtist
+
+        fetchArtwork(extractedArtist, extractedTitle)
+    }
+
+    private fun fetchArtwork(artist: String?, song: String?) {
+        artworkSearchJob?.cancel()
+        val terms = listOfNotNull(artist, song).filter { it.isNotBlank() }
+        if (terms.isEmpty()) {
+            _currentTrackArtworkUrl.value = null
+            return
+        }
+
+        val query = terms.joinToString(" ").trim()
+        artworkSearchJob = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val response = MultiSourceRadioClients.iTunesSearchService.searchSong(term = query)
+                val firstResult = response.results?.firstOrNull()
+                val artworkUrl = firstResult?.artworkUrl100?.replace("100x100bb", "600x600bb")
+                _currentTrackArtworkUrl.value = artworkUrl
+            } catch (e: Exception) {
+                _currentTrackArtworkUrl.value = null
+            }
+        }
+    }
+
     fun togglePlayPause() {
         val player = mediaController ?: return
         val current = _currentStation.value ?: return
+
+        if (_playbackStatus.value == PlaybackStatus.ERROR) {
+            playStation(current)
+            return
+        }
 
         if (player.isPlaying) {
             player.pause()
@@ -254,7 +332,7 @@ class RadioViewModel(
             
             // If stopped or idle, re-configure
             if (player.playbackState == Player.STATE_IDLE) {
-                                val mediaItem = MediaItem.Builder()
+                val mediaItem = MediaItem.Builder()
                     .setUri(current.url)
                     .setMediaId(current.id.toString())
                     .setMediaMetadata(

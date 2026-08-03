@@ -60,6 +60,9 @@ fun RadioApp(
 ) {
     val iconScale = LocalIconScale.current
     val currentStation by viewModel.currentStation.collectAsStateWithLifecycle()
+    val currentTrackTitle by viewModel.currentTrackTitle.collectAsStateWithLifecycle()
+    val currentTrackArtist by viewModel.currentTrackArtist.collectAsStateWithLifecycle()
+    val currentTrackArtworkUrl by viewModel.currentTrackArtworkUrl.collectAsStateWithLifecycle()
     val playbackStatus by viewModel.playbackStatus.collectAsStateWithLifecycle()
     val volume by viewModel.volume.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
@@ -126,10 +129,27 @@ fun RadioApp(
 
     val focusManager = LocalFocusManager.current
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(errorMessage, playbackStatus) {
+        val msg = errorMessage
+        if (msg != null && playbackStatus == PlaybackStatus.ERROR) {
+            val result = snackbarHostState.showSnackbar(
+                message = msg,
+                actionLabel = "Reintentar",
+                duration = SnackbarDuration.Long
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                currentStation?.let { viewModel.playStation(it) }
+            }
+        }
+    }
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val isTablet = maxWidth >= 600.dp
 
         Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
                     title = {
@@ -365,6 +385,9 @@ fun RadioApp(
                         ) {
                             PlaybackDashboard(
                                 currentStation = currentStation,
+                                currentTrackTitle = currentTrackTitle,
+                                currentTrackArtist = currentTrackArtist,
+                                currentTrackArtworkUrl = currentTrackArtworkUrl,
                                 playbackStatus = playbackStatus,
                                 volume = volume,
                                 errorMessage = errorMessage,
@@ -425,6 +448,9 @@ fun RadioApp(
                         // 1. PLAYBACK DASHBOARD (Header Player Panel)
                         PlaybackDashboard(
                             currentStation = currentStation,
+                            currentTrackTitle = currentTrackTitle,
+                            currentTrackArtist = currentTrackArtist,
+                            currentTrackArtworkUrl = currentTrackArtworkUrl,
                             playbackStatus = playbackStatus,
                             volume = volume,
                             errorMessage = errorMessage,
@@ -495,6 +521,9 @@ fun RadioApp(
 @Composable
 fun PlaybackDashboard(
     currentStation: RadioStation?,
+    currentTrackTitle: String? = null,
+    currentTrackArtist: String? = null,
+    currentTrackArtworkUrl: String? = null,
     playbackStatus: PlaybackStatus,
     volume: Float,
     errorMessage: String?,
@@ -590,15 +619,34 @@ fun PlaybackDashboard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val badgeColor = when (playbackStatus) {
+                        PlaybackStatus.ERROR -> MaterialTheme.colorScheme.error
+                        PlaybackStatus.BUFFERING -> MaterialTheme.colorScheme.tertiary
+                        PlaybackStatus.PLAYING -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.surfaceVariant
+                    }
+                    val badgeContentColor = when (playbackStatus) {
+                        PlaybackStatus.ERROR -> MaterialTheme.colorScheme.onError
+                        PlaybackStatus.BUFFERING -> MaterialTheme.colorScheme.onTertiary
+                        PlaybackStatus.PLAYING -> MaterialTheme.colorScheme.onPrimary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                    val badgeText = when (playbackStatus) {
+                        PlaybackStatus.ERROR -> "CAÍDA ⚠️"
+                        PlaybackStatus.BUFFERING -> "CARGANDO..."
+                        PlaybackStatus.PLAYING -> "AL AIRE"
+                        else -> "EN PAUSA"
+                    }
+
                     Box(
                         modifier = Modifier
-                            .background(MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(12.dp))
+                            .background(badgeColor, shape = RoundedCornerShape(12.dp))
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            "AL AIRE",
+                            badgeText,
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = MaterialTheme.colorScheme.onPrimary,
+                                color = badgeContentColor,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp
                             )
@@ -707,78 +755,141 @@ fun PlaybackDashboard(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left Side: Rotating Disc
-                    Box(
-                        modifier = Modifier
-                            .size(60.dp)
-                            .rotate(animatedAngle)
-                            .clip(CircleShape)
-                            .background(
-                                brush = Brush.sweepGradient(
-                                    colors = listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.onPrimary,
-                                        MaterialTheme.colorScheme.primary
-                                    )
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // Center inner label
+                    // Album Cover Image or Rotating Disc
+                    if (!currentTrackArtworkUrl.isNullOrBlank()) {
                         Box(
                             modifier = Modifier
-                                .size(26.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surface),
+                                .size(68.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                Icons.Default.Radio,
-                                contentDescription = null,
-                                modifier = Modifier.size(12.dp),
-                                tint = MaterialTheme.colorScheme.primary
+                            coil.compose.AsyncImage(
+                                model = currentTrackArtworkUrl,
+                                contentDescription = "Carátula de álbum",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(16.dp)),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
                             )
+                        }
+                    } else {
+                        // Left Side: Rotating Disc
+                        Box(
+                            modifier = Modifier
+                                .size(60.dp)
+                                .rotate(animatedAngle)
+                                .clip(CircleShape)
+                                .background(
+                                    brush = Brush.sweepGradient(
+                                        colors = listOf(
+                                            MaterialTheme.colorScheme.primary,
+                                            MaterialTheme.colorScheme.onPrimary,
+                                            MaterialTheme.colorScheme.primary
+                                        )
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            // Center inner label
+                            Box(
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surface),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Radio,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(12.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
 
                     Spacer(modifier = Modifier.width(16.dp))
 
                     // Center Metadata Info
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = currentStation.genre.uppercase(),
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold,
-                                letterSpacing = 1.sp
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = currentStation.name,
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        val geoParts = listOfNotNull(
-                            currentStation.country.takeIf { it.isNotEmpty() },
-                            currentStation.region.takeIf { it.isNotEmpty() },
-                            currentStation.province.takeIf { it.isNotEmpty() },
-                            currentStation.district.takeIf { it.isNotEmpty() }
-                        ).filter { it.isNotBlank() }
+                    val hasTrackDetails = !currentTrackTitle.isNullOrBlank() || !currentTrackArtist.isNullOrBlank()
 
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = if (geoParts.isNotEmpty()) geoParts.joinToString(" • ") else if (currentStation.isCustom) "Stream personalizado" else "Transmisión en vivo",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                    Column(modifier = Modifier.weight(1f)) {
+                        if (hasTrackDetails) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.MusicNote,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = (currentTrackArtist ?: currentStation.genre).uppercase(),
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.sp
+                                    ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = currentTrackTitle ?: currentStation.name,
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "📻 ${currentStation.name}",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        } else {
+                            Text(
+                                text = currentStation.genre.uppercase(),
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    letterSpacing = 1.sp
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = currentStation.name,
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            val geoParts = listOfNotNull(
+                                currentStation.country.takeIf { it.isNotEmpty() },
+                                currentStation.region.takeIf { it.isNotEmpty() },
+                                currentStation.province.takeIf { it.isNotEmpty() },
+                                currentStation.district.takeIf { it.isNotEmpty() }
+                            ).filter { it.isNotBlank() }
+
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = if (geoParts.isNotEmpty()) geoParts.joinToString(" • ") else if (currentStation.isCustom) "Stream personalizado" else "Transmisión en vivo",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
 
@@ -796,14 +907,62 @@ fun PlaybackDashboard(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Error Message View
-                if (errorMessage != null) {
-                    Text(
-                        text = errorMessage,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                // Error Message View Card
+                if (errorMessage != null || playbackStatus == PlaybackStatus.ERROR) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = errorMessage ?: "No se pudo conectar con la emisora.",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontWeight = FontWeight.Medium
+                                    ),
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            OutlinedButton(
+                                onClick = onTogglePlay,
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.5f))
+                            ) {
+                                Icon(
+                                    Icons.Default.Refresh,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Reintentar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
 
                 // Controls row matching HTML styling
@@ -840,18 +999,24 @@ fun PlaybackDashboard(
                                 }
                             }
                             else -> {
+                                val buttonBg = if (playbackStatus == PlaybackStatus.ERROR) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                                val icon = when {
+                                    playbackStatus == PlaybackStatus.ERROR -> Icons.Default.Refresh
+                                    isPlaying -> Icons.Filled.Pause
+                                    else -> Icons.Filled.PlayArrow
+                                }
                                 Box(
                                     modifier = Modifier
                                         .size(48.dp)
                                         .testTag("play_pause_button")
-                                        .background(MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(14.dp))
+                                        .background(buttonBg, shape = RoundedCornerShape(14.dp))
                                         .clip(RoundedCornerShape(14.dp))
                                         .clickable { onTogglePlay() },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                        contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                                        icon,
+                                        contentDescription = if (isPlaying) "Pausar" else "Reproducir / Reintentar",
                                         tint = MaterialTheme.colorScheme.onPrimary,
                                         modifier = Modifier.size(28.dp * iconScale)
                                     )

@@ -184,6 +184,30 @@ interface SomaFmApiService {
 // ==========================================
 // Centralized API Clients Singleton
 // ==========================================
+// ==========================================
+// 5. iTunes Search API Models & Service
+// ==========================================
+data class ITunesSearchResponse(
+    @Json(name = "resultCount") val resultCount: Int = 0,
+    @Json(name = "results") val results: List<ITunesSongResult>? = null
+)
+
+data class ITunesSongResult(
+    @Json(name = "trackName") val trackName: String? = null,
+    @Json(name = "artistName") val artistName: String? = null,
+    @Json(name = "collectionName") val collectionName: String? = null,
+    @Json(name = "artworkUrl100") val artworkUrl100: String? = null
+)
+
+interface ITunesSearchApiService {
+    @GET("search")
+    suspend fun searchSong(
+        @Query("term") term: String,
+        @Query("entity") entity: String = "song",
+        @Query("limit") limit: Int = 1
+    ): ITunesSearchResponse
+}
+
 object MultiSourceRadioClients {
     private val moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
@@ -234,6 +258,15 @@ object MultiSourceRadioClients {
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
             .create(SomaFmApiService::class.java)
+    }
+
+    val iTunesSearchService: ITunesSearchApiService by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://itunes.apple.com/")
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(ITunesSearchApiService::class.java)
     }
 
     // Static fallback list of high-quality GitHub Raw Curated radios
