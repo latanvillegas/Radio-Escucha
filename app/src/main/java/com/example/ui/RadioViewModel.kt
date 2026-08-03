@@ -21,6 +21,7 @@ import com.example.util.NetworkConnectivityObserver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -524,6 +525,52 @@ class RadioViewModel(
         }
     }
 
+    private fun String.containsNormalized(query: String): Boolean {
+        if (query.isBlank()) return true
+        val normSelf = java.text.Normalizer.normalize(this, java.text.Normalizer.Form.NFD)
+            .replace("\\p{M}+".toRegex(), "").lowercase().trim()
+        val normQuery = java.text.Normalizer.normalize(query, java.text.Normalizer.Form.NFD)
+            .replace("\\p{M}+".toRegex(), "").lowercase().trim()
+        return normSelf.contains(normQuery)
+    }
+
+    private suspend fun fetchRadioBrowserStationsExpanded(query: String, limitPerQuery: Int = 40): List<RadioStation> {
+        val q = query.trim()
+        if (q.isBlank()) return emptyList()
+
+        val qNormalized = java.text.Normalizer.normalize(q, java.text.Normalizer.Form.NFD)
+            .replace("\\p{M}+".toRegex(), "").trim()
+
+        return coroutineScope {
+            val byNameDeferred = async {
+                try { RadioBrowserApiClient.service.searchStations(name = q, limit = limitPerQuery).map { it.toRadioStation() } }
+                catch (e: Exception) { emptyList() }
+            }
+            val byCountryDeferred = async {
+                try { RadioBrowserApiClient.service.searchStations(country = q, limit = limitPerQuery).map { it.toRadioStation() } }
+                catch (e: Exception) { emptyList() }
+            }
+            val byCountryNormDeferred = async {
+                if (qNormalized.lowercase() != q.lowercase()) {
+                    try { RadioBrowserApiClient.service.searchStations(country = qNormalized, limit = limitPerQuery).map { it.toRadioStation() } }
+                    catch (e: Exception) { emptyList() }
+                } else emptyList()
+            }
+            val byTagDeferred = async {
+                try { RadioBrowserApiClient.service.searchStations(tag = q.lowercase(), limit = limitPerQuery).map { it.toRadioStation() } }
+                catch (e: Exception) { emptyList() }
+            }
+
+            val nameList = byNameDeferred.await()
+            val countryList = byCountryDeferred.await()
+            val countryNormList = byCountryNormDeferred.await()
+            val tagList = byTagDeferred.await()
+
+            (nameList + countryList + countryNormList + tagList)
+                .distinctBy { (it.name.lowercase().trim()) to (it.url.lowercase().trim()) }
+        }
+    }
+
     fun searchRadioBrowser(query: String) {
         _radioBrowserSearchQuery.value = query
         val provider = _selectedRadioProvider.value
@@ -544,8 +591,8 @@ class RadioViewModel(
                     _radioBrowserLoading.value = true
                     _radioBrowserError.value = null
                     try {
-                        val dtos = RadioBrowserApiClient.service.searchStations(name = query.trim(), limit = 40)
-                        _radioBrowserStations.value = dtos.map { it.toRadioStation() }
+                        val stations = fetchRadioBrowserStationsExpanded(query.trim(), limitPerQuery = 50)
+                        _radioBrowserStations.value = stations
                     } catch (e: Exception) {
                         _radioBrowserError.value = "Error al buscar en Radio Browser: ${e.localizedMessage ?: "Error de red"}"
                         _radioBrowserStations.value = emptyList()
@@ -565,13 +612,13 @@ class RadioViewModel(
             try {
                 val q = query.trim()
 
-                // 1. Radio Browser
+                // 1. Radio Browser (Expanded search: Name, Country, Tag)
                 val rbDeferred = async {
                     try {
                         if (q.isBlank()) {
                             RadioBrowserApiClient.service.getTopVoteStations(limit = 20).map { it.toRadioStation() }
                         } else {
-                            RadioBrowserApiClient.service.searchStations(name = q, limit = 25).map { it.toRadioStation() }
+                            fetchRadioBrowserStationsExpanded(q, limitPerQuery = 35)
                         }
                     } catch (e: Exception) { emptyList() }
                 }
@@ -581,9 +628,10 @@ class RadioViewModel(
                     try {
                         val list = MultiSourceRadioClients.fallbackGitHubCuratedList
                         if (q.isBlank()) list else list.filter {
-                            it.name.contains(q, ignoreCase = true) ||
-                            it.genre.contains(q, ignoreCase = true) ||
-                            it.country.contains(q, ignoreCase = true)
+                            it.name.containsNormalized(q) ||
+                            it.genre.containsNormalized(q) ||
+                            it.country.containsNormalized(q) ||
+                            it.region.containsNormalized(q)
                         }
                     } catch (e: Exception) { emptyList() }
                 }
@@ -594,8 +642,8 @@ class RadioViewModel(
                         val channels = MultiSourceRadioClients.somaFmService.getChannels().channels ?: emptyList()
                         val stations = channels.map { it.toRadioStation() }
                         if (q.isBlank()) stations.take(12) else stations.filter {
-                            it.name.contains(q, ignoreCase = true) ||
-                            it.genre.contains(q, ignoreCase = true)
+                            it.name.containsNormalized(q) ||
+                            it.genre.containsNormalized(q)
                         }
                     } catch (e: Exception) { emptyList() }
                 }
@@ -605,14 +653,19 @@ class RadioViewModel(
                     try {
                         val response = MultiSourceRadioClients.iHeartService.getLiveStations(
                             keywords = q.takeIf { it.isNotBlank() },
-                            limit = 20
+                            limit = 30
                         )
                         val dtos = response.hits ?: response.items ?: emptyList()
                         val res = dtos.map { it.toRadioStation() }
-                        if (res.isNotEmpty()) res else listOf(
+                        val fallbackFiltered = listOf(
                             RadioStation(id = 8101, name = "iHeartRadio Top 40", url = "https://stream.revma.ihrhls.com/zc1469", genre = "Top 40 / Hits", country = "EE.UU.", region = "iHeartMedia"),
                             RadioStation(id = 8102, name = "iHeartRadio Country", url = "https://stream.revma.ihrhls.com/zc4414", genre = "Country", country = "EE.UU.", region = "iHeartMedia")
-                        )
+                        ).filter {
+                            it.name.containsNormalized(q) ||
+                            it.genre.containsNormalized(q) ||
+                            it.country.containsNormalized(q)
+                        }
+                        (res + fallbackFiltered).distinctBy { (it.name.lowercase().trim()) to (it.url.lowercase().trim()) }
                     } catch (e: Exception) { emptyList() }
                 }
 
@@ -635,23 +688,19 @@ class RadioViewModel(
                             }
                         }
                         parse(body)
-                        val resList = list.take(15)
-                        if (resList.isNotEmpty()) resList else {
-                            if (q.isBlank()) MultiSourceRadioClients.fallbackTuneInList else {
-                                MultiSourceRadioClients.fallbackTuneInList.filter {
-                                    it.name.contains(q, ignoreCase = true) ||
-                                    it.genre.contains(q, ignoreCase = true) ||
-                                    it.country.contains(q, ignoreCase = true)
-                                }
-                            }
+                        val fallbackFiltered = MultiSourceRadioClients.fallbackTuneInList.filter {
+                            it.name.containsNormalized(q) ||
+                            it.genre.containsNormalized(q) ||
+                            it.country.containsNormalized(q) ||
+                            it.region.containsNormalized(q)
                         }
+                        (list + fallbackFiltered).distinctBy { (it.name.lowercase().trim()) to (it.url.lowercase().trim()) }
                     } catch (e: Exception) {
-                        if (q.isBlank()) MultiSourceRadioClients.fallbackTuneInList else {
-                            MultiSourceRadioClients.fallbackTuneInList.filter {
-                                it.name.contains(q, ignoreCase = true) ||
-                                it.genre.contains(q, ignoreCase = true) ||
-                                it.country.contains(q, ignoreCase = true)
-                            }
+                        MultiSourceRadioClients.fallbackTuneInList.filter {
+                            it.name.containsNormalized(q) ||
+                            it.genre.containsNormalized(q) ||
+                            it.country.containsNormalized(q) ||
+                            it.region.containsNormalized(q)
                         }
                     }
                 }
@@ -659,24 +708,29 @@ class RadioViewModel(
                 // 6. FMStream Directory
                 val fmDeferred = async {
                     try {
-                        if (q.isBlank()) {
-                            MultiSourceRadioClients.fallbackFmStreamList
+                        val apiResults = if (q.isNotBlank()) {
+                            try {
+                                MultiSourceRadioClients.fmStreamService.searchFmStream(query = q).map { it.toRadioStation() }
+                            } catch (e: Exception) { emptyList() }
                         } else {
-                            val results = MultiSourceRadioClients.fmStreamService.searchFmStream(query = q).map { it.toRadioStation() }
-                            results.ifEmpty {
-                                MultiSourceRadioClients.fallbackFmStreamList.filter {
-                                    it.name.contains(q, ignoreCase = true) ||
-                                    it.genre.contains(q, ignoreCase = true) ||
-                                    it.country.contains(q, ignoreCase = true)
-                                }
-                            }
+                            MultiSourceRadioClients.fallbackFmStreamList
                         }
+
+                        val fallbackFiltered = MultiSourceRadioClients.fallbackFmStreamList.filter {
+                            it.name.containsNormalized(q) ||
+                            it.genre.containsNormalized(q) ||
+                            it.country.containsNormalized(q) ||
+                            it.region.containsNormalized(q)
+                        }
+
+                        (apiResults + fallbackFiltered).distinctBy { (it.name.lowercase().trim()) to (it.url.lowercase().trim()) }
                     } catch (e: Exception) {
                         MultiSourceRadioClients.fallbackFmStreamList.filter {
-                            it.name.contains(q, ignoreCase = true) ||
-                            it.genre.contains(q, ignoreCase = true) ||
-                            it.country.contains(q, ignoreCase = true)
-                        }.ifEmpty { MultiSourceRadioClients.fallbackFmStreamList }
+                            it.name.containsNormalized(q) ||
+                            it.genre.containsNormalized(q) ||
+                            it.country.containsNormalized(q) ||
+                            it.region.containsNormalized(q)
+                        }
                     }
                 }
 
@@ -713,13 +767,14 @@ class RadioViewModel(
                         MultiSourceRadioClients.fmStreamService.searchFmStream(query = q).map { it.toRadioStation() }
                     } catch (e: Exception) { emptyList() }
 
-                    apiResults.ifEmpty {
-                        MultiSourceRadioClients.fallbackFmStreamList.filter {
-                            it.name.contains(q, ignoreCase = true) ||
-                            it.genre.contains(q, ignoreCase = true) ||
-                            it.country.contains(q, ignoreCase = true)
-                        }
+                    val fallbackFiltered = MultiSourceRadioClients.fallbackFmStreamList.filter {
+                        it.name.containsNormalized(q) ||
+                        it.genre.containsNormalized(q) ||
+                        it.country.containsNormalized(q) ||
+                        it.region.containsNormalized(q)
                     }
+
+                    (apiResults + fallbackFiltered).distinctBy { (it.name.lowercase().trim()) to (it.url.lowercase().trim()) }
                 }
                 _radioBrowserStations.value = list
             } catch (e: Exception) {
@@ -735,29 +790,41 @@ class RadioViewModel(
             _radioBrowserLoading.value = true
             _radioBrowserError.value = null
             try {
+                val q = query.trim()
                 val response = MultiSourceRadioClients.iHeartService.getLiveStations(
-                    keywords = query.takeIf { it.isNotBlank() },
+                    keywords = q.takeIf { it.isNotBlank() },
                     limit = 35
                 )
                 val dtos = response.hits ?: response.items ?: emptyList()
                 val result = dtos.map { it.toRadioStation() }
-                _radioBrowserStations.value = if (result.isNotEmpty()) result else {
-                    // Fallback to sample iHeart list if endpoint response is empty
-                    listOf(
-                        RadioStation(id = 8101, name = "iHeartRadio Top 40", url = "https://stream.revma.ihrhls.com/zc1469", genre = "Top 40 / Hits", country = "EE.UU.", region = "iHeartMedia"),
-                        RadioStation(id = 8102, name = "iHeartRadio Country", url = "https://stream.revma.ihrhls.com/zc4414", genre = "Country", country = "EE.UU.", region = "iHeartMedia"),
-                        RadioStation(id = 8103, name = "iHeartRock Classic", url = "https://stream.revma.ihrhls.com/zc4418", genre = "Classic Rock", country = "EE.UU.", region = "iHeartMedia"),
-                        RadioStation(id = 8104, name = "iHeart90s Hits", url = "https://stream.revma.ihrhls.com/zc4422", genre = "90s Hits", country = "EE.UU.", region = "iHeartMedia")
-                    )
-                }
-            } catch (e: Exception) {
-                // Return fallback iHeart list if API restriction or error occurs
-                _radioBrowserStations.value = listOf(
+                val fallbackList = listOf(
                     RadioStation(id = 8101, name = "iHeartRadio Top 40", url = "https://stream.revma.ihrhls.com/zc1469", genre = "Top 40 / Hits", country = "EE.UU.", region = "iHeartMedia"),
                     RadioStation(id = 8102, name = "iHeartRadio Country", url = "https://stream.revma.ihrhls.com/zc4414", genre = "Country", country = "EE.UU.", region = "iHeartMedia"),
                     RadioStation(id = 8103, name = "iHeartRock Classic", url = "https://stream.revma.ihrhls.com/zc4418", genre = "Classic Rock", country = "EE.UU.", region = "iHeartMedia"),
                     RadioStation(id = 8104, name = "iHeart90s Hits", url = "https://stream.revma.ihrhls.com/zc4422", genre = "90s Hits", country = "EE.UU.", region = "iHeartMedia")
                 )
+                val filteredFallback = if (q.isNotBlank()) {
+                    fallbackList.filter {
+                        it.name.containsNormalized(q) ||
+                        it.genre.containsNormalized(q) ||
+                        it.country.containsNormalized(q)
+                    }
+                } else fallbackList
+
+                _radioBrowserStations.value = (result + filteredFallback).distinctBy { (it.name.lowercase().trim()) to (it.url.lowercase().trim()) }
+            } catch (e: Exception) {
+                val q = query.trim()
+                val fallbackList = listOf(
+                    RadioStation(id = 8101, name = "iHeartRadio Top 40", url = "https://stream.revma.ihrhls.com/zc1469", genre = "Top 40 / Hits", country = "EE.UU.", region = "iHeartMedia"),
+                    RadioStation(id = 8102, name = "iHeartRadio Country", url = "https://stream.revma.ihrhls.com/zc4414", genre = "Country", country = "EE.UU.", region = "iHeartMedia"),
+                    RadioStation(id = 8103, name = "iHeartRock Classic", url = "https://stream.revma.ihrhls.com/zc4418", genre = "Classic Rock", country = "EE.UU.", region = "iHeartMedia"),
+                    RadioStation(id = 8104, name = "iHeart90s Hits", url = "https://stream.revma.ihrhls.com/zc4422", genre = "90s Hits", country = "EE.UU.", region = "iHeartMedia")
+                )
+                _radioBrowserStations.value = if (q.isBlank()) fallbackList else fallbackList.filter {
+                    it.name.containsNormalized(q) ||
+                    it.genre.containsNormalized(q) ||
+                    it.country.containsNormalized(q)
+                }
                 _radioBrowserError.value = null
             } finally {
                 _radioBrowserLoading.value = false
@@ -787,23 +854,21 @@ class RadioViewModel(
                     }
                 }
                 parseItems(body)
-                val finalStations = stations.take(40).ifEmpty {
-                    if (q.isBlank()) MultiSourceRadioClients.fallbackTuneInList else {
-                        MultiSourceRadioClients.fallbackTuneInList.filter {
-                            it.name.contains(q, ignoreCase = true) ||
-                            it.genre.contains(q, ignoreCase = true) ||
-                            it.country.contains(q, ignoreCase = true)
-                        }
-                    }
+                val fallbackFiltered = MultiSourceRadioClients.fallbackTuneInList.filter {
+                    it.name.containsNormalized(q) ||
+                    it.genre.containsNormalized(q) ||
+                    it.country.containsNormalized(q) ||
+                    it.region.containsNormalized(q)
                 }
-                _radioBrowserStations.value = finalStations
+                _radioBrowserStations.value = (stations + fallbackFiltered).distinctBy { (it.name.lowercase().trim()) to (it.url.lowercase().trim()) }
             } catch (e: Exception) {
                 val q = query.trim()
                 val fallback = if (q.isBlank()) MultiSourceRadioClients.fallbackTuneInList else {
                     MultiSourceRadioClients.fallbackTuneInList.filter {
-                        it.name.contains(q, ignoreCase = true) ||
-                        it.genre.contains(q, ignoreCase = true) ||
-                        it.country.contains(q, ignoreCase = true)
+                        it.name.containsNormalized(q) ||
+                        it.genre.containsNormalized(q) ||
+                        it.country.containsNormalized(q) ||
+                        it.region.containsNormalized(q)
                     }
                 }
                 _radioBrowserStations.value = fallback.ifEmpty { MultiSourceRadioClients.fallbackTuneInList }
@@ -819,12 +884,14 @@ class RadioViewModel(
             _radioBrowserLoading.value = true
             _radioBrowserError.value = null
             try {
+                val q = query.trim()
                 val list = MultiSourceRadioClients.fallbackGitHubCuratedList
-                val filtered = if (query.isNotBlank()) {
+                val filtered = if (q.isNotBlank()) {
                     list.filter {
-                        it.name.contains(query, ignoreCase = true) ||
-                        it.genre.contains(query, ignoreCase = true) ||
-                        it.country.contains(query, ignoreCase = true)
+                        it.name.containsNormalized(q) ||
+                        it.genre.containsNormalized(q) ||
+                        it.country.containsNormalized(q) ||
+                        it.region.containsNormalized(q)
                     }
                 } else {
                     list
@@ -843,13 +910,14 @@ class RadioViewModel(
             _radioBrowserLoading.value = true
             _radioBrowserError.value = null
             try {
+                val q = query.trim()
                 val response = MultiSourceRadioClients.somaFmService.getChannels()
                 val channels = response.channels ?: emptyList()
                 val stations = channels.map { it.toRadioStation() }
-                val filtered = if (query.isNotBlank()) {
+                val filtered = if (q.isNotBlank()) {
                     stations.filter {
-                        it.name.contains(query, ignoreCase = true) ||
-                        it.genre.contains(query, ignoreCase = true)
+                        it.name.containsNormalized(q) ||
+                        it.genre.containsNormalized(q)
                     }
                 } else {
                     stations
