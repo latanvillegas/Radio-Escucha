@@ -550,6 +550,152 @@ class RadioViewModel(
         }
     }
 
+    // Search Suggestions Models and Logic
+    enum class SuggestionType {
+        STATION, COUNTRY, REGION, GENRE, KEYWORD
+    }
+
+    data class SearchSuggestion(
+        val title: String,
+        val subtitle: String,
+        val query: String,
+        val type: SuggestionType
+    )
+
+    private val commonCountries = listOf(
+        "Perú", "México", "Colombia", "Argentina", "España", "Chile", "Ecuador", "Venezuela",
+        "Bolivia", "Uruguay", "Paraguay", "Brasil", "EE.UU.", "Guatemala", "República Dominicana",
+        "Costa Rica", "Panamá", "Honduras", "El Salvador", "Nicaragua", "Puerto Rico", "Cuba"
+    )
+
+    private val commonRegions = listOf(
+        "Lima", "Arequipa", "Trujillo", "Cuzco", "Bogotá", "Medellín", "Cali", "Buenos Aires",
+        "Córdoba", "Rosario", "Madrid", "Barcelona", "Valencia", "Sevilla", "Ciudad de México",
+        "Guadalajara", "Monterrey", "Santiago", "Valparaíso", "Quito", "Guayaquil", "Caracas",
+        "Montevideo", "Asunción", "La Paz", "Santa Cruz", "San José", "San Juan", "Miami", "Los Angeles"
+    )
+
+    private val commonGenres = listOf(
+        "Pop", "Rock", "Salsa", "Cumbia", "Reggaeton", "Bachata", "Noticias", "Deportes", "Jazz",
+        "Clásica", "80s", "90s", "Hits", "Top 40", "Variada", "Electrónica", "Urban", "Baladas",
+        "Folclore", "Merengue", "Vallenato", "Tango", "Trova", "Cristiana", "Instrumental"
+    )
+
+    private fun mapCountryAlias(query: String): List<String> {
+        val q = query.normalize().lowercase().trim()
+        return when {
+            q.contains("peru") -> listOf("Peru", "Perú")
+            q.contains("mexico") -> listOf("Mexico", "México")
+            q.contains("espana") || q.contains("spain") -> listOf("Spain", "España")
+            q.contains("argentina") -> listOf("Argentina")
+            q.contains("colombia") -> listOf("Colombia")
+            q.contains("chile") -> listOf("Chile")
+            q.contains("eeuu") || q.contains("usa") || q.contains("estados unidos") -> listOf("United States", "US", "USA", "EE.UU.")
+            q.contains("ecuador") -> listOf("Ecuador")
+            q.contains("venezuela") -> listOf("Venezuela")
+            q.contains("bolivia") -> listOf("Bolivia")
+            q.contains("uruguay") -> listOf("Uruguay")
+            q.contains("paraguay") -> listOf("Paraguay")
+            q.contains("brasil") || q.contains("brazil") -> listOf("Brazil", "Brasil")
+            else -> listOf(query)
+        }
+    }
+
+    private fun generateSuggestions(query: String, availableStations: List<RadioStation>): List<SearchSuggestion> {
+        val q = query.trim()
+        if (q.isBlank()) return emptyList()
+        val normQ = q.normalize().lowercase()
+
+        val suggestions = mutableListOf<SearchSuggestion>()
+
+        // 1. Countries
+        for (country in commonCountries) {
+            if (country.normalize().lowercase().contains(normQ)) {
+                suggestions.add(
+                    SearchSuggestion(
+                        title = country,
+                        subtitle = "País • Buscar emisoras de $country",
+                        query = country,
+                        type = SuggestionType.COUNTRY
+                    )
+                )
+            }
+        }
+
+        // 2. Regions / Cities
+        for (region in commonRegions) {
+            if (region.normalize().lowercase().contains(normQ)) {
+                suggestions.add(
+                    SearchSuggestion(
+                        title = region,
+                        subtitle = "Lugar / Región • Emisoras en $region",
+                        query = region,
+                        type = SuggestionType.REGION
+                    )
+                )
+            }
+        }
+
+        // 3. Genres / Tags
+        for (genre in commonGenres) {
+            if (genre.normalize().lowercase().contains(normQ)) {
+                suggestions.add(
+                    SearchSuggestion(
+                        title = genre,
+                        subtitle = "Género Musical • Radios de $genre",
+                        query = genre,
+                        type = SuggestionType.GENRE
+                    )
+                )
+            }
+        }
+
+        // 4. Stations
+        val matchingStations = availableStations.filter { s ->
+            s.name.normalize().lowercase().contains(normQ) ||
+            s.genre.normalize().lowercase().contains(normQ) ||
+            s.country.normalize().lowercase().contains(normQ) ||
+            s.region.normalize().lowercase().contains(normQ)
+        }.take(5)
+
+        for (station in matchingStations) {
+            suggestions.add(
+                SearchSuggestion(
+                    title = station.name,
+                    subtitle = "${station.genre} • ${station.country.ifBlank { "Radio Online" }}",
+                    query = station.name,
+                    type = SuggestionType.STATION
+                )
+            )
+        }
+
+        return suggestions.distinctBy { it.title.lowercase() }.take(8)
+    }
+
+    val homeSuggestions: StateFlow<List<SearchSuggestion>> = combine(
+        _searchQuery, stations
+    ) { query, stationList ->
+        generateSuggestions(query, stationList)
+    }
+    .flowOn(Dispatchers.Default)
+    .stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    val onlineSuggestions: StateFlow<List<SearchSuggestion>> = combine(
+        _radioBrowserSearchQuery, _radioBrowserStations
+    ) { query, onlineList ->
+        generateSuggestions(query, onlineList)
+    }
+    .flowOn(Dispatchers.Default)
+    .stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
     private fun String.containsNormalized(query: String): Boolean {
         if (query.isBlank()) return true
         val normSelf = java.text.Normalizer.normalize(this, java.text.Normalizer.Form.NFD)
@@ -559,39 +705,76 @@ class RadioViewModel(
         return normSelf.contains(normQuery)
     }
 
-    private suspend fun fetchRadioBrowserStationsExpanded(query: String, limitPerQuery: Int = 40): List<RadioStation> {
+    private suspend fun fetchRadioBrowserStationsExpanded(query: String, limitPerQuery: Int = 50): List<RadioStation> {
         val q = query.trim()
         if (q.isBlank()) return emptyList()
 
-        val qNormalized = java.text.Normalizer.normalize(q, java.text.Normalizer.Form.NFD)
-            .replace("\\p{M}+".toRegex(), "").trim()
+        val qNormalized = q.normalize()
+        val countryAliases = mapCountryAlias(q)
 
         return coroutineScope {
+            // 1. By Name
             val byNameDeferred = async {
                 try { RadioBrowserApiClient.service.searchStations(name = q, limit = limitPerQuery).map { it.toRadioStation() } }
                 catch (e: Exception) { emptyList() }
             }
+
+            // 2. By Country (mapped)
             val byCountryDeferred = async {
-                try { RadioBrowserApiClient.service.searchStations(country = q, limit = limitPerQuery).map { it.toRadioStation() } }
+                val list = mutableListOf<RadioStation>()
+                for (alias in countryAliases) {
+                    try {
+                        list.addAll(RadioBrowserApiClient.service.searchStations(country = alias, limit = limitPerQuery).map { it.toRadioStation() })
+                    } catch (e: Exception) {}
+                }
+                list
+            }
+
+            // 3. By State / Region / City
+            val byStateDeferred = async {
+                try { RadioBrowserApiClient.service.searchStations(state = q, limit = limitPerQuery).map { it.toRadioStation() } }
                 catch (e: Exception) { emptyList() }
             }
-            val byCountryNormDeferred = async {
-                if (qNormalized.lowercase() != q.lowercase()) {
-                    try { RadioBrowserApiClient.service.searchStations(country = qNormalized, limit = limitPerQuery).map { it.toRadioStation() } }
-                    catch (e: Exception) { emptyList() }
-                } else emptyList()
-            }
+
+            // 4. By Tag / Genre
             val byTagDeferred = async {
                 try { RadioBrowserApiClient.service.searchStations(tag = q.lowercase(), limit = limitPerQuery).map { it.toRadioStation() } }
                 catch (e: Exception) { emptyList() }
             }
 
+            // 5. Tokenized search if multiple words
+            val tokens = q.split(" ").filter { it.length >= 2 }
+            val tokenizedDeferred = async {
+                if (tokens.size >= 2) {
+                    val tokenList = mutableListOf<RadioStation>()
+                    for (token in tokens) {
+                        try {
+                            tokenList.addAll(RadioBrowserApiClient.service.searchStations(name = token, limit = 25).map { it.toRadioStation() })
+                        } catch (e: Exception) {}
+                    }
+                    tokenList
+                } else emptyList()
+            }
+
             val nameList = byNameDeferred.await()
             val countryList = byCountryDeferred.await()
-            val countryNormList = byCountryNormDeferred.await()
+            val stateList = byStateDeferred.await()
             val tagList = byTagDeferred.await()
+            val tokenList = tokenizedDeferred.await()
 
-            (nameList + countryList + countryNormList + tagList)
+            val combinedAll = (nameList + countryList + stateList + tagList + tokenList)
+
+            // Normalize and rank results
+            val tokensNorm = qNormalized.lowercase().split(" ").filter { it.isNotBlank() }
+
+            combinedAll
+                .filter { station ->
+                    if (tokensNorm.isEmpty()) true
+                    else {
+                        val fullTextNorm = "${station.name} ${station.genre} ${station.country} ${station.region}".normalize().lowercase()
+                        tokensNorm.any { token -> fullTextNorm.contains(token) }
+                    }
+                }
                 .distinctBy { (it.name.lowercase().trim()) to (it.url.lowercase().trim()) }
         }
     }
