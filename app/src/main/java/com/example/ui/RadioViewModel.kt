@@ -18,6 +18,7 @@ import com.example.service.PlaybackService
 import com.example.data.RadioRepository
 import com.example.data.RadioStation
 import com.example.data.PlaybackHistory
+import com.example.data.RadioBrowserApiClient
 import com.example.util.ConnectivityObserver
 import com.example.util.NetworkConnectivityObserver
 import kotlinx.coroutines.Dispatchers
@@ -133,6 +134,19 @@ class RadioViewModel(
     private val _sleepSecondsLeft = MutableStateFlow<Int?>(null)
     val sleepSecondsLeft: StateFlow<Int?> = _sleepSecondsLeft.asStateFlow()
 
+    // Radio Browser online states
+    private val _radioBrowserStations = MutableStateFlow<List<RadioStation>>(emptyList())
+    val radioBrowserStations: StateFlow<List<RadioStation>> = _radioBrowserStations.asStateFlow()
+
+    private val _radioBrowserLoading = MutableStateFlow(false)
+    val radioBrowserLoading: StateFlow<Boolean> = _radioBrowserLoading.asStateFlow()
+
+    private val _radioBrowserError = MutableStateFlow<String?>(null)
+    val radioBrowserError: StateFlow<String?> = _radioBrowserError.asStateFlow()
+
+    private val _radioBrowserSearchQuery = MutableStateFlow("")
+    val radioBrowserSearchQuery: StateFlow<String> = _radioBrowserSearchQuery.asStateFlow()
+
     init {
         // Build and initialize ExoPlayer
         setupPlayer()
@@ -141,6 +155,9 @@ class RadioViewModel(
         viewModelScope.launch {
             try { repository.checkAndPrepopulate(); android.util.Log.d("RadioViewModel", "DB prepopulated!") } catch (e: Exception) { android.util.Log.e("RadioViewModel", "Error DB", e) }
         }
+
+        // Load default popular stations from Radio Browser
+        loadRadioBrowserTopVoted()
     }
 
     private fun setupPlayer() {
@@ -348,6 +365,103 @@ class RadioViewModel(
     fun clearHistory() {
         viewModelScope.launch {
             repository.clearHistory()
+        }
+    }
+
+    // Radio Browser API Operations
+    fun searchRadioBrowser(query: String) {
+        _radioBrowserSearchQuery.value = query
+        if (query.isBlank()) {
+            loadRadioBrowserTopVoted()
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            _radioBrowserLoading.value = true
+            _radioBrowserError.value = null
+            try {
+                val dtos = RadioBrowserApiClient.service.searchStations(name = query.trim(), limit = 40)
+                _radioBrowserStations.value = dtos.map { it.toRadioStation() }
+            } catch (e: Exception) {
+                _radioBrowserError.value = "Error al buscar en Radio Browser: ${e.localizedMessage ?: "Error de red"}"
+                _radioBrowserStations.value = emptyList()
+            } finally {
+                _radioBrowserLoading.value = false
+            }
+        }
+    }
+
+    fun loadRadioBrowserTopVoted() {
+        _radioBrowserSearchQuery.value = ""
+        viewModelScope.launch(Dispatchers.IO) {
+            _radioBrowserLoading.value = true
+            _radioBrowserError.value = null
+            try {
+                val dtos = RadioBrowserApiClient.service.getTopVoteStations(limit = 40)
+                _radioBrowserStations.value = dtos.map { it.toRadioStation() }
+            } catch (e: Exception) {
+                _radioBrowserError.value = "Error al conectar con Radio Browser: ${e.localizedMessage ?: "Error de red"}"
+                _radioBrowserStations.value = emptyList()
+            } finally {
+                _radioBrowserLoading.value = false
+            }
+        }
+    }
+
+    fun loadRadioBrowserTopClicked() {
+        _radioBrowserSearchQuery.value = ""
+        viewModelScope.launch(Dispatchers.IO) {
+            _radioBrowserLoading.value = true
+            _radioBrowserError.value = null
+            try {
+                val dtos = RadioBrowserApiClient.service.getTopClickStations(limit = 40)
+                _radioBrowserStations.value = dtos.map { it.toRadioStation() }
+            } catch (e: Exception) {
+                _radioBrowserError.value = "Error al conectar con Radio Browser: ${e.localizedMessage ?: "Error de red"}"
+                _radioBrowserStations.value = emptyList()
+            } finally {
+                _radioBrowserLoading.value = false
+            }
+        }
+    }
+
+    fun fetchRadioBrowserByTag(tag: String) {
+        _radioBrowserSearchQuery.value = tag
+        viewModelScope.launch(Dispatchers.IO) {
+            _radioBrowserLoading.value = true
+            _radioBrowserError.value = null
+            try {
+                val dtos = RadioBrowserApiClient.service.searchStations(tag = tag.lowercase(), limit = 40)
+                _radioBrowserStations.value = dtos.map { it.toRadioStation() }
+            } catch (e: Exception) {
+                _radioBrowserError.value = "Error al buscar por género: ${e.localizedMessage ?: "Error de red"}"
+                _radioBrowserStations.value = emptyList()
+            } finally {
+                _radioBrowserLoading.value = false
+            }
+        }
+    }
+
+    fun fetchRadioBrowserByCountry(country: String) {
+        _radioBrowserSearchQuery.value = country
+        viewModelScope.launch(Dispatchers.IO) {
+            _radioBrowserLoading.value = true
+            _radioBrowserError.value = null
+            try {
+                val dtos = RadioBrowserApiClient.service.searchStations(country = country, limit = 40)
+                _radioBrowserStations.value = dtos.map { it.toRadioStation() }
+            } catch (e: Exception) {
+                _radioBrowserError.value = "Error al buscar por país: ${e.localizedMessage ?: "Error de red"}"
+                _radioBrowserStations.value = emptyList()
+            } finally {
+                _radioBrowserLoading.value = false
+            }
+        }
+    }
+
+    fun saveRadioBrowserStation(station: RadioStation) {
+        viewModelScope.launch {
+            val newStation = station.copy(id = 0, isCustom = true)
+            repository.insert(newStation)
         }
     }
 

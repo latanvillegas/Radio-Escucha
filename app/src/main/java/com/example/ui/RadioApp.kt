@@ -1810,17 +1810,10 @@ fun NavigationTabSwitcher(
             }
         1 -> {
             DiscoverTab(
-                genres = genresList.filter { it != "Todas" },
-                onGenreSelect = { genre ->
-                    onGenreSelect(genre)
-                    onSearchQueryChange("")
-                    onActiveTabChange(0)
-                },
-                onCountrySelect = { country ->
-                    onSearchQueryChange(country)
-                    onGenreSelect("Todas")
-                    onActiveTabChange(0)
-                },
+                viewModel = viewModel,
+                currentStation = currentStation,
+                playbackStatus = playbackStatus,
+                onShare = onShare,
                 bottomBarOffsetHeightPx = bottomBarOffsetHeightPx
             )
         }
@@ -1994,127 +1987,394 @@ fun NavigationTabSwitcher(
 
 @Composable
 fun DiscoverTab(
-    genres: List<String>,
-    onGenreSelect: (String) -> Unit,
-    onCountrySelect: (String) -> Unit,
+    viewModel: RadioViewModel,
+    currentStation: RadioStation?,
+    playbackStatus: PlaybackStatus,
+    onShare: (RadioStation) -> Unit,
     bottomBarOffsetHeightPx: Float
 ) {
     val iconScale = LocalIconScale.current
     val density = LocalDensity.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    val onlineStations by viewModel.radioBrowserStations.collectAsStateWithLifecycle()
+    val isLoading by viewModel.radioBrowserLoading.collectAsStateWithLifecycle()
+    val errorMsg by viewModel.radioBrowserError.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.radioBrowserSearchQuery.collectAsStateWithLifecycle()
+    val localStations by viewModel.stations.collectAsStateWithLifecycle()
+
+    var activeCategoryFilter by remember { mutableStateOf("Más Votadas") }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .padding(bottom = with(density) { (80.dp.toPx() - bottomBarOffsetHeightPx).toDp() })
     ) {
-        Text(
-            text = "EXPLORAR GÉNEROS",
-            style = MaterialTheme.typography.labelLarge.copy(
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                letterSpacing = 1.5.sp
-            )
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            val chunkedGenres = genres.chunked(2)
-            chunkedGenres.forEach { pair ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+        // Radio Browser Header Banner
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+            ),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center
                 ) {
-                    pair.forEach { genre ->
-                        Card(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp)
-                                .clickable { onGenreSelect(genre) }
-                                .testTag("discover_genre_$genre"),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            )
-                        ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
-                                contentAlignment = Alignment.CenterStart
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.MusicNote,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = genre,
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onBackground,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    if (pair.size < 2) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
+                    Icon(
+                        Icons.Default.Public,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Navegador Radio-Browser",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "Explora +40,000 emisoras en vivo de todo el mundo",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
-            text = "EXPLORAR POR PAÍS / CONTINENTE",
-            style = MaterialTheme.typography.labelLarge.copy(
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                letterSpacing = 1.5.sp
-            )
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
-        val countries = listOf(
-            "Perú", "Argentina", "Venezuela", "Colombia", "Chile", "Bolivia", "España", "México", "Honduras"
-        )
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            countries.chunked(3).forEach { triple ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    triple.forEach { country ->
-                        Card(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(44.dp)
-                                .clickable { onCountrySelect(country) }
-                                .testTag("discover_country_$country"),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            )
-                        ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = country,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                    repeat(3 - triple.size) {
-                        Spacer(modifier = Modifier.weight(1f))
+        // Online Search Box
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { query ->
+                viewModel.searchRadioBrowser(query)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("radio_browser_search_input"),
+            placeholder = { Text("Buscar radio por nombre o género en línea...", fontSize = 14.sp) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { viewModel.loadRadioBrowserTopVoted(); activeCategoryFilter = "Más Votadas" }) {
+                        Icon(Icons.Default.Clear, contentDescription = "Limpiar búsqueda", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
+            },
+            singleLine = true,
+            shape = RoundedCornerShape(16.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+            )
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Categories / Quick Filters Row
+        val categories = listOf(
+            "Más Votadas" to { viewModel.loadRadioBrowserTopVoted() },
+            "Más Escuchadas" to { viewModel.loadRadioBrowserTopClicked() },
+            "Pop / Rock" to { viewModel.fetchRadioBrowserByTag("pop") },
+            "Noticias" to { viewModel.fetchRadioBrowserByTag("news") },
+            "Salsa" to { viewModel.fetchRadioBrowserByTag("salsa") },
+            "Perú" to { viewModel.fetchRadioBrowserByCountry("Peru") },
+            "México" to { viewModel.fetchRadioBrowserByCountry("Mexico") },
+            "España" to { viewModel.fetchRadioBrowserByCountry("Spain") },
+            "Argentina" to { viewModel.fetchRadioBrowserByCountry("Argentina") },
+            "Chile" to { viewModel.fetchRadioBrowserByCountry("Chile") },
+            "Colombia" to { viewModel.fetchRadioBrowserByCountry("Colombia") }
+        )
+
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 4.dp)
+        ) {
+            items(categories) { (label, action) ->
+                val isSelected = (activeCategoryFilter == label && searchQuery.isEmpty()) || (searchQuery.equals(label, ignoreCase = true))
+                FilterChip(
+                    selected = isSelected,
+                    onClick = {
+                        activeCategoryFilter = label
+                        action()
+                    },
+                    label = { Text(label, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
+                    modifier = Modifier.testTag("radio_browser_chip_$label"),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Results Section Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (searchQuery.isNotBlank()) "RESULTADOS EN LÍNEA" else "ESTACIONES DESTACADAS ($activeCategoryFilter)",
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 1.2.sp
+                )
+            )
+
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (errorMsg != null) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(text = errorMsg ?: "", color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = { viewModel.loadRadioBrowserTopVoted() },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Reintentar conexión")
+                    }
+                }
+            }
+        } else if (isLoading && onlineStations.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 40.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        "Cargando radios en línea...",
+                        style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    )
+                }
+            }
+        } else if (onlineStations.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 40.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Default.WifiOff,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        "No se encontraron resultados",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                        )
+                    )
+                    Text(
+                        "Intenta buscar otro nombre o género",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                onlineStations.forEach { station ->
+                    val isAlreadySaved = localStations.any { it.url == station.url || it.name.equals(station.name, ignoreCase = true) }
+
+                    RadioBrowserStationItem(
+                        station = station,
+                        isPlaying = currentStation?.url == station.url && playbackStatus == PlaybackStatus.PLAYING,
+                        isBuffering = currentStation?.url == station.url && playbackStatus == PlaybackStatus.BUFFERING,
+                        isSaved = isAlreadySaved,
+                        onSelect = { viewModel.playStation(station) },
+                        onSave = {
+                            viewModel.saveRadioBrowserStation(station)
+                            android.widget.Toast.makeText(context, "${station.name} guardada en mis radios", android.widget.Toast.LENGTH_SHORT).show()
+                        },
+                        onShare = onShare
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RadioBrowserStationItem(
+    station: RadioStation,
+    isPlaying: Boolean,
+    isBuffering: Boolean,
+    isSaved: Boolean,
+    onSelect: (RadioStation) -> Unit,
+    onSave: () -> Unit,
+    onShare: (RadioStation) -> Unit
+) {
+    val iconScale = LocalIconScale.current
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onSelect(station) }
+            .testTag("radio_browser_item_${station.id}"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isPlaying) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        ),
+        border = if (isPlaying) {
+            androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+        } else null
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        if (isPlaying) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isPlaying && !isBuffering) {
+                    MiniVisualizer(color = MaterialTheme.colorScheme.primary)
+                } else if (isBuffering) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Public,
+                        contentDescription = null,
+                        tint = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = station.name,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = station.genre,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (station.country.isNotBlank()) {
+                        Text(
+                            text = "•",
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                        )
+                        Text(
+                            text = station.country + if (station.region.isNotBlank()) " (${station.region})" else "",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                fontSize = 11.sp
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            // Action buttons: Share & Save
+            IconButton(
+                onClick = { onShare(station) },
+                modifier = Modifier.minimumInteractiveComponentSize()
+            ) {
+                Icon(
+                    Icons.Default.Share,
+                    contentDescription = "Compartir",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.size(20.dp * iconScale)
+                )
+            }
+
+            IconButton(
+                onClick = { if (!isSaved) onSave() },
+                enabled = !isSaved,
+                modifier = Modifier.minimumInteractiveComponentSize()
+            ) {
+                Icon(
+                    if (isSaved) Icons.Filled.CheckCircle else Icons.Outlined.BookmarkAdd,
+                    contentDescription = if (isSaved) "Guardada en mis radios" else "Guardar en mis radios",
+                    tint = if (isSaved) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp * iconScale)
+                )
             }
         }
     }
