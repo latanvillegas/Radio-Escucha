@@ -395,6 +395,9 @@ fun RadioApp(
                                 networkStatus = networkStatus,
                                 onTogglePlay = { viewModel.togglePlayPause() },
                                 onStopPlayback = { viewModel.stopPlayback() },
+                                onPreviousStation = { viewModel.playPreviousStation() },
+                                onNextStation = { viewModel.playNextStation() },
+                                onRandomStation = { viewModel.playRandomStation() },
                                 onVolumeChange = { viewModel.setVolume(it) },
                                 onCancelSleepTimer = { viewModel.cancelSleepTimer() },
                                 onShare = shareStation
@@ -458,6 +461,9 @@ fun RadioApp(
                             networkStatus = networkStatus,
                             onTogglePlay = { viewModel.togglePlayPause() },
                             onStopPlayback = { viewModel.stopPlayback() },
+                            onPreviousStation = { viewModel.playPreviousStation() },
+                            onNextStation = { viewModel.playNextStation() },
+                            onRandomStation = { viewModel.playRandomStation() },
                             onVolumeChange = { viewModel.setVolume(it) },
                             onCancelSleepTimer = { viewModel.cancelSleepTimer() },
                             onShare = shareStation
@@ -531,6 +537,9 @@ fun PlaybackDashboard(
     networkStatus: com.example.util.ConnectivityObserver.Status,
     onTogglePlay: () -> Unit,
     onStopPlayback: () -> Unit,
+    onPreviousStation: () -> Unit = {},
+    onNextStation: () -> Unit = {},
+    onRandomStation: () -> Unit = {},
     onVolumeChange: (Float) -> Unit,
     onCancelSleepTimer: () -> Unit,
     onShare: (RadioStation) -> Unit
@@ -1002,14 +1011,21 @@ fun PlaybackDashboard(
                     // Play / Buffer controls cluster
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(
-                            Icons.Default.SkipPrevious,
-                            contentDescription = "Anterior",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(28.dp * iconScale).clickable { /* Placeholder navigation */ }
-                        )
+                        IconButton(
+                            onClick = onPreviousStation,
+                            modifier = Modifier
+                                .testTag("previous_station_button")
+                                .size(40.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.SkipPrevious,
+                                contentDescription = "Estación Anterior",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(28.dp * iconScale)
+                            )
+                        }
 
                         when (playbackStatus) {
                             PlaybackStatus.BUFFERING -> {
@@ -1052,12 +1068,33 @@ fun PlaybackDashboard(
                             }
                         }
 
-                        Icon(
-                            Icons.Default.SkipNext,
-                            contentDescription = "Siguiente",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(28.dp * iconScale).clickable { /* Placeholder navigation */ }
-                        )
+                        IconButton(
+                            onClick = onNextStation,
+                            modifier = Modifier
+                                .testTag("next_station_button")
+                                .size(40.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.SkipNext,
+                                contentDescription = "Estación Siguiente",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(28.dp * iconScale)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onRandomStation,
+                            modifier = Modifier
+                                .testTag("random_station_button")
+                                .size(40.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Shuffle,
+                                contentDescription = "Estación Aleatoria",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                modifier = Modifier.size(22.dp * iconScale)
+                            )
+                        }
                     }
 
                     // Format Badge Indicator from HTML layout

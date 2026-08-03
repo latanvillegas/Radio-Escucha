@@ -411,6 +411,31 @@ class RadioViewModel(
         _errorMessage.value = null
     }
 
+    fun playNextStation() {
+        val currentList = filteredStations.value.ifEmpty { stations.value }
+        if (currentList.isEmpty()) return
+        val current = _currentStation.value
+        val currentIndex = if (current != null) currentList.indexOfFirst { it.id == current.id } else -1
+        val nextIndex = if (currentIndex >= 0) (currentIndex + 1) % currentList.size else 0
+        playStation(currentList[nextIndex])
+    }
+
+    fun playPreviousStation() {
+        val currentList = filteredStations.value.ifEmpty { stations.value }
+        if (currentList.isEmpty()) return
+        val current = _currentStation.value
+        val currentIndex = if (current != null) currentList.indexOfFirst { it.id == current.id } else -1
+        val prevIndex = if (currentIndex > 0) currentIndex - 1 else if (currentIndex == 0) currentList.size - 1 else 0
+        playStation(currentList[prevIndex])
+    }
+
+    fun playRandomStation() {
+        val currentList = filteredStations.value.ifEmpty { stations.value }
+        if (currentList.isEmpty()) return
+        val randomIndex = kotlin.random.Random.nextInt(currentList.size)
+        playStation(currentList[randomIndex])
+    }
+
     fun setVolume(vol: Float) {
         val clamped = vol.coerceIn(0.0f, 1.0f)
         _volume.value = clamped

@@ -6,6 +6,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaLibraryService
@@ -38,7 +39,11 @@ class PlaybackService : MediaLibraryService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private lateinit var repository: RadioRepository
 
+    private val CUSTOM_COMMAND_PREVIOUS = "ACTION_PREVIOUS"
+    private val CUSTOM_COMMAND_NEXT = "ACTION_NEXT"
     private val CUSTOM_COMMAND_FAVORITE = "ACTION_FAVORITE"
+    private val CUSTOM_COMMAND_RANDOM = "ACTION_RANDOM"
+    private val CUSTOM_COMMAND_STOP = "ACTION_STOP"
     private val ROOT_ID = "ROOT"
 
     override fun onCreate() {
@@ -60,11 +65,39 @@ class PlaybackService : MediaLibraryService() {
             PendingIntent.getActivity(this, 0, sessionIntent, PendingIntent.FLAG_IMMUTABLE)
         }
 
+        val prevCommand = SessionCommand(CUSTOM_COMMAND_PREVIOUS, Bundle.EMPTY)
+        val prevButton = CommandButton.Builder()
+            .setSessionCommand(prevCommand)
+            .setDisplayName("Anterior")
+            .setIconResId(android.R.drawable.ic_media_previous)
+            .build()
+
+        val nextCommand = SessionCommand(CUSTOM_COMMAND_NEXT, Bundle.EMPTY)
+        val nextButton = CommandButton.Builder()
+            .setSessionCommand(nextCommand)
+            .setDisplayName("Siguiente")
+            .setIconResId(android.R.drawable.ic_media_next)
+            .build()
+
         val favoriteCommand = SessionCommand(CUSTOM_COMMAND_FAVORITE, Bundle.EMPTY)
         val favoriteButton = CommandButton.Builder()
             .setSessionCommand(favoriteCommand)
             .setDisplayName("Favorito")
-            .setIconResId(android.R.drawable.btn_star) // Simple star icon
+            .setIconResId(android.R.drawable.btn_star)
+            .build()
+
+        val randomCommand = SessionCommand(CUSTOM_COMMAND_RANDOM, Bundle.EMPTY)
+        val randomButton = CommandButton.Builder()
+            .setSessionCommand(randomCommand)
+            .setDisplayName("Aleatorio")
+            .setIconResId(android.R.drawable.ic_menu_rotate)
+            .build()
+
+        val stopCommand = SessionCommand(CUSTOM_COMMAND_STOP, Bundle.EMPTY)
+        val stopButton = CommandButton.Builder()
+            .setSessionCommand(stopCommand)
+            .setDisplayName("Detener")
+            .setIconResId(android.R.drawable.ic_menu_close_clear_cancel)
             .build()
 
         val callback = object : MediaLibrarySession.Callback {
@@ -74,14 +107,41 @@ class PlaybackService : MediaLibraryService() {
             ): MediaSession.ConnectionResult {
                 val connectionResult = super.onConnect(session, controller)
                 val sessionCommands = connectionResult.availableSessionCommands.buildUpon()
+                    .add(prevCommand)
+                    .add(nextCommand)
                     .add(favoriteCommand)
+                    .add(randomCommand)
+                    .add(stopCommand)
                     .build()
-                
+
+                val playerCommands = connectionResult.availablePlayerCommands.buildUpon()
+                    .add(Player.COMMAND_SEEK_TO_NEXT)
+                    .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                    .add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                    .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                    .build()
+
                 return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                     .setAvailableSessionCommands(sessionCommands)
-                    .setAvailablePlayerCommands(connectionResult.availablePlayerCommands)
-                    .setCustomLayout(listOf(favoriteButton))
+                    .setAvailablePlayerCommands(playerCommands)
+                    .setCustomLayout(listOf(prevButton, favoriteButton, randomButton, nextButton, stopButton))
                     .build()
+            }
+
+            override fun onPlayerCommandRequest(
+                session: MediaSession,
+                controller: MediaSession.ControllerInfo,
+                playerCommand: Int
+            ): Int {
+                if (playerCommand == Player.COMMAND_SEEK_TO_NEXT || playerCommand == Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM) {
+                    playNextStationInService()
+                    return SessionResult.RESULT_SUCCESS
+                }
+                if (playerCommand == Player.COMMAND_SEEK_TO_PREVIOUS || playerCommand == Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM) {
+                    playPreviousStationInService()
+                    return SessionResult.RESULT_SUCCESS
+                }
+                return super.onPlayerCommandRequest(session, controller, playerCommand)
             }
 
             override fun onCustomCommand(
@@ -90,9 +150,27 @@ class PlaybackService : MediaLibraryService() {
                 customCommand: SessionCommand,
                 args: Bundle
             ): ListenableFuture<SessionResult> {
-                if (customCommand.customAction == CUSTOM_COMMAND_FAVORITE) {
-                    toggleFavorite()
-                    return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                when (customCommand.customAction) {
+                    CUSTOM_COMMAND_PREVIOUS -> {
+                        playPreviousStationInService()
+                        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                    }
+                    CUSTOM_COMMAND_NEXT -> {
+                        playNextStationInService()
+                        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                    }
+                    CUSTOM_COMMAND_FAVORITE -> {
+                        toggleFavorite()
+                        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                    }
+                    CUSTOM_COMMAND_RANDOM -> {
+                        playRandomStationInService()
+                        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                    }
+                    CUSTOM_COMMAND_STOP -> {
+                        stopPlaybackInService()
+                        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                    }
                 }
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED))
             }
@@ -217,6 +295,72 @@ class PlaybackService : MediaLibraryService() {
                 repository.update(station.copy(isFavorite = !station.isFavorite))
             }
         }
+    }
+
+    private fun playNextStationInService() {
+        serviceScope.launch {
+            val stations = repository.allStations.first()
+            if (stations.isEmpty()) return@launch
+            val currentId = exoPlayer?.currentMediaItem?.mediaId?.toIntOrNull()
+            val currentIndex = if (currentId != null) stations.indexOfFirst { it.id == currentId } else -1
+            val nextIndex = if (currentIndex >= 0) (currentIndex + 1) % stations.size else 0
+            playStationInService(stations[nextIndex])
+        }
+    }
+
+    private fun playPreviousStationInService() {
+        serviceScope.launch {
+            val stations = repository.allStations.first()
+            if (stations.isEmpty()) return@launch
+            val currentId = exoPlayer?.currentMediaItem?.mediaId?.toIntOrNull()
+            val currentIndex = if (currentId != null) stations.indexOfFirst { it.id == currentId } else -1
+            val prevIndex = if (currentIndex > 0) currentIndex - 1 else if (currentIndex == 0) stations.size - 1 else 0
+            playStationInService(stations[prevIndex])
+        }
+    }
+
+    private fun playRandomStationInService() {
+        serviceScope.launch {
+            val stations = repository.allStations.first()
+            if (stations.isEmpty()) return@launch
+            val randomIndex = kotlin.random.Random.nextInt(stations.size)
+            playStationInService(stations[randomIndex])
+        }
+    }
+
+    private fun stopPlaybackInService() {
+        exoPlayer?.stop()
+        exoPlayer?.clearMediaItems()
+    }
+
+    private suspend fun playStationInService(station: RadioStation) {
+        val playableUrl = if (station.url.contains("Tune.ashx") || station.url.contains("radiotime.com")) {
+            try {
+                val uri = android.net.Uri.parse(station.url)
+                val presetId = uri.getQueryParameter("id") ?: ""
+                if (presetId.isNotBlank()) {
+                    val response = MultiSourceRadioClients.tuneInService.tuneStation(presetId)
+                    val directStream = response.body?.firstOrNull { 
+                        it.element == "url" || (it.url.isNotBlank() && it.url.startsWith("http"))
+                    }?.url
+                    directStream.takeIf { !it.isNullOrBlank() } ?: station.url
+                } else station.url
+            } catch (e: Exception) {
+                station.url
+            }
+        } else {
+            station.url
+        }
+
+        repository.insertHistory(station)
+
+        val player = exoPlayer ?: return
+        player.stop()
+        player.clearMediaItems()
+        val mediaItem = mapStationToMediaItem(station).buildUpon().setUri(playableUrl).build()
+        player.setMediaItem(mediaItem)
+        player.prepare()
+        player.play()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? {
