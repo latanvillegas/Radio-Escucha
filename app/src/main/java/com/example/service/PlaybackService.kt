@@ -21,6 +21,7 @@ import android.os.Bundle
 import com.example.data.RadioDatabase
 import com.example.data.RadioRepository
 import com.example.data.RadioStation
+import com.example.data.MultiSourceRadioClients
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -129,14 +130,13 @@ class PlaybackService : MediaLibraryService() {
                             repository.allStations.first().firstOrNull()
                         }
 
-                        if (lastStation != null) {
-                            val mediaItem = mapStationToMediaItem(lastStation)
-                            MediaItemsWithStartPosition(listOf(mediaItem), 0, 0L)
-                        } else {
-                            throw UnsupportedOperationException("No playback history available")
-                        }
+                        val stationToPlay = lastStation ?: MultiSourceRadioClients.fallbackGitHubCuratedList.first()
+                        val mediaItem = mapStationToMediaItem(stationToPlay)
+                        MediaItemsWithStartPosition(listOf(mediaItem), 0, 0L)
                     } catch (e: Exception) {
-                        throw UnsupportedOperationException("Playback resumption failed", e)
+                        val fallback = MultiSourceRadioClients.fallbackGitHubCuratedList.first()
+                        val mediaItem = mapStationToMediaItem(fallback)
+                        MediaItemsWithStartPosition(listOf(mediaItem), 0, 0L)
                     }
                 }
             }
