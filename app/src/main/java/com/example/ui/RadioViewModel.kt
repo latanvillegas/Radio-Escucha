@@ -147,6 +147,17 @@ class RadioViewModel(
     val selectedRadioProvider: StateFlow<String> = _selectedRadioProvider.asStateFlow()
 
     // Radio Browser / Online Radio states
+    sealed class RadioSearchMode {
+        data class Query(val query: String) : RadioSearchMode()
+        data class Tag(val tag: String) : RadioSearchMode()
+        data class Country(val country: String) : RadioSearchMode()
+        data class StateMode(val state: String) : RadioSearchMode()
+        data class Language(val language: String) : RadioSearchMode()
+        object TopVoted : RadioSearchMode()
+        object TopClicked : RadioSearchMode()
+        object None : RadioSearchMode()
+    }
+
     private val _radioBrowserStations = MutableStateFlow<List<RadioStation>>(emptyList())
     val radioBrowserStations: StateFlow<List<RadioStation>> = _radioBrowserStations.asStateFlow()
 
@@ -158,6 +169,15 @@ class RadioViewModel(
 
     private val _radioBrowserSearchQuery = MutableStateFlow("")
     val radioBrowserSearchQuery: StateFlow<String> = _radioBrowserSearchQuery.asStateFlow()
+
+    private val _isLoadingMore = MutableStateFlow(false)
+    val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
+
+    private val _canLoadMore = MutableStateFlow(true)
+    val canLoadMore: StateFlow<Boolean> = _canLoadMore.asStateFlow()
+
+    private var currentOffset = 0
+    private var currentSearchMode: RadioSearchMode = RadioSearchMode.None
 
     init {
         // Build and initialize ExoPlayer
@@ -535,7 +555,7 @@ class RadioViewModel(
 
     // Search Suggestions Models and Logic
     enum class SuggestionType {
-        STATION, COUNTRY, REGION, GENRE, KEYWORD
+        STATION, COUNTRY, REGION, GENRE, LANGUAGE, KEYWORD
     }
 
     data class SearchSuggestion(
@@ -548,20 +568,27 @@ class RadioViewModel(
     private val commonCountries = listOf(
         "Perú", "México", "Colombia", "Argentina", "España", "Chile", "Ecuador", "Venezuela",
         "Bolivia", "Uruguay", "Paraguay", "Brasil", "EE.UU.", "Guatemala", "República Dominicana",
-        "Costa Rica", "Panamá", "Honduras", "El Salvador", "Nicaragua", "Puerto Rico", "Cuba"
+        "Costa Rica", "Panamá", "Honduras", "El Salvador", "Nicaragua", "Puerto Rico", "Cuba",
+        "Alemania", "Francia", "Italia", "Reino Unido", "Canadá", "Japón"
     )
 
     private val commonRegions = listOf(
-        "Lima", "Arequipa", "Trujillo", "Cuzco", "Bogotá", "Medellín", "Cali", "Buenos Aires",
-        "Córdoba", "Rosario", "Madrid", "Barcelona", "Valencia", "Sevilla", "Ciudad de México",
-        "Guadalajara", "Monterrey", "Santiago", "Valparaíso", "Quito", "Guayaquil", "Caracas",
-        "Montevideo", "Asunción", "La Paz", "Santa Cruz", "San José", "San Juan", "Miami", "Los Angeles"
+        "Lima", "Arequipa", "Trujillo", "Cuzco", "California", "Texas", "Florida", "Bavaria", "Baviera",
+        "Jalisco", "Nuevo León", "Puebla", "Antioquia", "Cundinamarca", "São Paulo", "Bogotá", "Medellín",
+        "Cali", "Buenos Aires", "Córdoba", "Rosario", "Madrid", "Barcelona", "Cataluña", "Andalucía",
+        "Valencia", "Sevilla", "Ciudad de México", "Guadalajara", "Monterrey", "Santiago", "Valparaíso",
+        "Quito", "Guayaquil", "Caracas", "Montevideo", "Asunción", "La Paz", "Santa Cruz", "San José",
+        "San Juan", "Miami", "Los Angeles", "Nueva York"
     )
 
     private val commonGenres = listOf(
         "Pop", "Rock", "Salsa", "Cumbia", "Reggaeton", "Bachata", "Noticias", "Deportes", "Jazz",
         "Clásica", "80s", "90s", "Hits", "Top 40", "Variada", "Electrónica", "Urban", "Baladas",
         "Folclore", "Merengue", "Vallenato", "Tango", "Trova", "Cristiana", "Instrumental"
+    )
+
+    private val commonLanguages = listOf(
+        "Español", "Inglés", "Portugués", "Francés", "Alemán", "Italiano", "Ruso", "Japonés", "Chino", "Árabe", "Coreano", "Quechua", "Hindi", "Holandés", "Polaco"
     )
 
     private fun mapCountryAlias(query: String): List<String> {
@@ -581,6 +608,25 @@ class RadioViewModel(
             q.contains("paraguay") -> listOf("Paraguay")
             q.contains("brasil") || q.contains("brazil") -> listOf("Brazil", "Brasil")
             else -> listOf(query)
+        }
+    }
+
+    private fun mapLanguageAlias(query: String): List<String> {
+        val q = query.normalize().lowercase().trim()
+        return when {
+            q.contains("espanol") || q.contains("spanish") || q.contains("castellano") -> listOf("spanish", "espanol", "español")
+            q.contains("ingles") || q.contains("english") -> listOf("english", "ingles", "inglés")
+            q.contains("portugues") || q.contains("portuguese") -> listOf("portuguese", "portugues", "português")
+            q.contains("frances") || q.contains("french") -> listOf("french", "frances", "français")
+            q.contains("aleman") || q.contains("german") || q.contains("deutsch") -> listOf("german", "aleman", "deutsch")
+            q.contains("italiano") || q.contains("italian") -> listOf("italian", "italiano")
+            q.contains("ruso") || q.contains("russian") -> listOf("russian", "ruso")
+            q.contains("japones") || q.contains("japanese") -> listOf("japanese", "japones")
+            q.contains("chino") || q.contains("chinese") -> listOf("chinese", "chino")
+            q.contains("arabe") || q.contains("arabic") -> listOf("arabic", "arabe")
+            q.contains("coreano") || q.contains("korean") -> listOf("korean", "coreano")
+            q.contains("quechua") || q.contains("kichwa") -> listOf("quechua", "kichwa")
+            else -> listOf(query.lowercase())
         }
     }
 
@@ -633,7 +679,21 @@ class RadioViewModel(
             }
         }
 
-        // 4. Stations
+        // 4. Languages
+        for (language in commonLanguages) {
+            if (language.normalize().lowercase().contains(normQ)) {
+                suggestions.add(
+                    SearchSuggestion(
+                        title = language,
+                        subtitle = "Idioma • Emisoras en idioma $language",
+                        query = language,
+                        type = SuggestionType.LANGUAGE
+                    )
+                )
+            }
+        }
+
+        // 5. Stations
         val matchingStations = availableStations.filter { s ->
             s.name.normalize().lowercase().contains(normQ) ||
             s.genre.normalize().lowercase().contains(normQ) ||
@@ -688,7 +748,7 @@ class RadioViewModel(
         return normSelf.contains(normQuery)
     }
 
-    private suspend fun fetchRadioBrowserStationsExpanded(query: String, limitPerQuery: Int = 50): List<RadioStation> {
+    private suspend fun fetchRadioBrowserStationsExpanded(query: String, limitPerQuery: Int = 40, offset: Int = 0): List<RadioStation> {
         val q = query.trim()
         if (q.isBlank()) return emptyList()
 
@@ -698,7 +758,7 @@ class RadioViewModel(
         return coroutineScope {
             // 1. By Name
             val byNameDeferred = async {
-                try { RadioBrowserApiClient.service.searchStations(name = q, limit = limitPerQuery).map { it.toRadioStation() } }
+                try { RadioBrowserApiClient.service.searchStations(name = q, limit = limitPerQuery, offset = offset).map { it.toRadioStation() } }
                 catch (e: Exception) { emptyList() }
             }
 
@@ -707,7 +767,7 @@ class RadioViewModel(
                 val list = mutableListOf<RadioStation>()
                 for (alias in countryAliases) {
                     try {
-                        list.addAll(RadioBrowserApiClient.service.searchStations(country = alias, limit = limitPerQuery).map { it.toRadioStation() })
+                        list.addAll(RadioBrowserApiClient.service.searchStations(country = alias, limit = limitPerQuery, offset = offset).map { it.toRadioStation() })
                     } catch (e: Exception) {}
                 }
                 list
@@ -715,24 +775,36 @@ class RadioViewModel(
 
             // 3. By State / Region / City
             val byStateDeferred = async {
-                try { RadioBrowserApiClient.service.searchStations(state = q, limit = limitPerQuery).map { it.toRadioStation() } }
+                try { RadioBrowserApiClient.service.searchStations(state = q, limit = limitPerQuery, offset = offset).map { it.toRadioStation() } }
                 catch (e: Exception) { emptyList() }
             }
 
             // 4. By Tag / Genre
             val byTagDeferred = async {
-                try { RadioBrowserApiClient.service.searchStations(tag = q.lowercase(), limit = limitPerQuery).map { it.toRadioStation() } }
+                try { RadioBrowserApiClient.service.searchStations(tag = q.lowercase(), limit = limitPerQuery, offset = offset).map { it.toRadioStation() } }
                 catch (e: Exception) { emptyList() }
             }
 
-            // 5. Tokenized search if multiple words
+            // 5. By Language (mapped & raw)
+            val byLanguageDeferred = async {
+                val list = mutableListOf<RadioStation>()
+                val langAliases = mapLanguageAlias(q)
+                for (alias in langAliases) {
+                    try {
+                        list.addAll(RadioBrowserApiClient.service.searchStations(language = alias, limit = limitPerQuery, offset = offset).map { it.toRadioStation() })
+                    } catch (e: Exception) {}
+                }
+                list
+            }
+
+            // 6. Tokenized search if multiple words
             val tokens = q.split(" ").filter { it.length >= 2 }
             val tokenizedDeferred = async {
                 if (tokens.size >= 2) {
                     val tokenList = mutableListOf<RadioStation>()
                     for (token in tokens) {
                         try {
-                            tokenList.addAll(RadioBrowserApiClient.service.searchStations(name = token, limit = 25).map { it.toRadioStation() })
+                            tokenList.addAll(RadioBrowserApiClient.service.searchStations(name = token, limit = 25, offset = offset).map { it.toRadioStation() })
                         } catch (e: Exception) {}
                     }
                     tokenList
@@ -743,9 +815,10 @@ class RadioViewModel(
             val countryList = byCountryDeferred.await()
             val stateList = byStateDeferred.await()
             val tagList = byTagDeferred.await()
+            val languageList = byLanguageDeferred.await()
             val tokenList = tokenizedDeferred.await()
 
-            val combinedAll = (nameList + countryList + stateList + tagList + tokenList)
+            val combinedAll = (nameList + countryList + stateList + tagList + languageList + tokenList)
 
             // Normalize and rank results
             val tokensNorm = qNormalized.lowercase().split(" ").filter { it.isNotBlank() }
@@ -770,6 +843,10 @@ class RadioViewModel(
             return
         }
 
+        currentOffset = 0
+        _canLoadMore.value = true
+        currentSearchMode = RadioSearchMode.Query(query)
+
         when (provider) {
             "Todas" -> performGlobalMultiApiSearch(query)
             "iHeartRadio" -> fetchIHeartRadioStations(query)
@@ -781,7 +858,7 @@ class RadioViewModel(
                     _radioBrowserLoading.value = true
                     _radioBrowserError.value = null
                     try {
-                        val stations = fetchRadioBrowserStationsExpanded(query.trim(), limitPerQuery = 50)
+                        val stations = fetchRadioBrowserStationsExpanded(query.trim(), limitPerQuery = 40, offset = 0)
                         _radioBrowserStations.value = stations
                     } catch (e: Exception) {
                         _radioBrowserError.value = "Error al buscar en Radio Browser: ${e.localizedMessage ?: "Error de red"}"
@@ -1040,6 +1117,9 @@ class RadioViewModel(
 
     fun loadRadioBrowserTopVoted() {
         _radioBrowserSearchQuery.value = ""
+        currentOffset = 0
+        _canLoadMore.value = true
+        currentSearchMode = RadioSearchMode.TopVoted
         viewModelScope.launch(Dispatchers.IO) {
             _radioBrowserLoading.value = true
             _radioBrowserError.value = null
@@ -1057,6 +1137,9 @@ class RadioViewModel(
 
     fun loadRadioBrowserTopClicked() {
         _radioBrowserSearchQuery.value = ""
+        currentOffset = 0
+        _canLoadMore.value = true
+        currentSearchMode = RadioSearchMode.TopClicked
         viewModelScope.launch(Dispatchers.IO) {
             _radioBrowserLoading.value = true
             _radioBrowserError.value = null
@@ -1074,6 +1157,9 @@ class RadioViewModel(
 
     fun fetchRadioBrowserByTag(tag: String) {
         _radioBrowserSearchQuery.value = tag
+        currentOffset = 0
+        _canLoadMore.value = true
+        currentSearchMode = RadioSearchMode.Tag(tag)
         viewModelScope.launch(Dispatchers.IO) {
             _radioBrowserLoading.value = true
             _radioBrowserError.value = null
@@ -1091,6 +1177,9 @@ class RadioViewModel(
 
     fun fetchRadioBrowserByCountry(country: String) {
         _radioBrowserSearchQuery.value = country
+        currentOffset = 0
+        _canLoadMore.value = true
+        currentSearchMode = RadioSearchMode.Country(country)
         viewModelScope.launch(Dispatchers.IO) {
             _radioBrowserLoading.value = true
             _radioBrowserError.value = null
@@ -1102,6 +1191,102 @@ class RadioViewModel(
                 _radioBrowserStations.value = emptyList()
             } finally {
                 _radioBrowserLoading.value = false
+            }
+        }
+    }
+
+    fun fetchRadioBrowserByState(state: String) {
+        _radioBrowserSearchQuery.value = state
+        currentOffset = 0
+        _canLoadMore.value = true
+        currentSearchMode = RadioSearchMode.StateMode(state)
+        viewModelScope.launch(Dispatchers.IO) {
+            _radioBrowserLoading.value = true
+            _radioBrowserError.value = null
+            try {
+                val dtos = RadioBrowserApiClient.service.searchStations(state = state, limit = 40)
+                _radioBrowserStations.value = dtos.map { it.toRadioStation() }
+            } catch (e: Exception) {
+                _radioBrowserError.value = "Error al buscar por estado/región: ${e.localizedMessage ?: "Error de red"}"
+                _radioBrowserStations.value = emptyList()
+            } finally {
+                _radioBrowserLoading.value = false
+            }
+        }
+    }
+
+    fun fetchRadioBrowserByLanguage(language: String) {
+        _radioBrowserSearchQuery.value = language
+        currentOffset = 0
+        _canLoadMore.value = true
+        currentSearchMode = RadioSearchMode.Language(language)
+        viewModelScope.launch(Dispatchers.IO) {
+            _radioBrowserLoading.value = true
+            _radioBrowserError.value = null
+            try {
+                val langAliases = mapLanguageAlias(language)
+                val list = mutableListOf<RadioStation>()
+                for (alias in langAliases) {
+                    val dtos = RadioBrowserApiClient.service.searchStations(language = alias, limit = 40)
+                    list.addAll(dtos.map { it.toRadioStation() })
+                }
+                _radioBrowserStations.value = list.distinctBy { station: RadioStation -> station.url }
+            } catch (e: Exception) {
+                _radioBrowserError.value = "Error al buscar por idioma: ${e.localizedMessage ?: "Error de red"}"
+                _radioBrowserStations.value = emptyList()
+            } finally {
+                _radioBrowserLoading.value = false
+            }
+        }
+    }
+
+    fun loadMoreStations() {
+        if (_isLoadingMore.value || !_canLoadMore.value || _radioBrowserLoading.value) return
+        val mode = currentSearchMode
+        if (mode is RadioSearchMode.None) return
+
+        currentOffset += 40
+        viewModelScope.launch(Dispatchers.IO) {
+            _isLoadingMore.value = true
+            try {
+                val nextStations: List<RadioStation> = when (mode) {
+                    is RadioSearchMode.Query -> fetchRadioBrowserStationsExpanded(mode.query, limitPerQuery = 40, offset = currentOffset)
+                    is RadioSearchMode.Tag -> RadioBrowserApiClient.service.searchStations(tag = mode.tag.lowercase(), limit = 40, offset = currentOffset).map { it.toRadioStation() }
+                    is RadioSearchMode.Country -> RadioBrowserApiClient.service.searchStations(country = mode.country, limit = 40, offset = currentOffset).map { it.toRadioStation() }
+                    is RadioSearchMode.StateMode -> RadioBrowserApiClient.service.searchStations(state = mode.state, limit = 40, offset = currentOffset).map { it.toRadioStation() }
+                    is RadioSearchMode.Language -> {
+                        val langAliases = mapLanguageAlias(mode.language)
+                        val list = mutableListOf<RadioStation>()
+                        for (alias in langAliases) {
+                            val dtos = RadioBrowserApiClient.service.searchStations(language = alias, limit = 40, offset = currentOffset)
+                            list.addAll(dtos.map { it.toRadioStation() })
+                        }
+                        list.distinctBy { it.url }
+                    }
+                    is RadioSearchMode.TopVoted -> {
+                        RadioBrowserApiClient.service.searchStations(order = "votes", limit = 40, offset = currentOffset).map { it.toRadioStation() }
+                    }
+                    is RadioSearchMode.TopClicked -> {
+                        RadioBrowserApiClient.service.searchStations(order = "clickcount", limit = 40, offset = currentOffset).map { it.toRadioStation() }
+                    }
+                    is RadioSearchMode.None -> emptyList()
+                }
+
+                if (nextStations.isEmpty()) {
+                    _canLoadMore.value = false
+                } else {
+                    val currentList = _radioBrowserStations.value
+                    val combined = (currentList + nextStations).distinctBy { (it.name.lowercase().trim()) to (it.url.lowercase().trim()) }
+                    if (combined.size == currentList.size) {
+                        _canLoadMore.value = false
+                    } else {
+                        _radioBrowserStations.value = combined
+                    }
+                }
+            } catch (e: Exception) {
+                _canLoadMore.value = false
+            } finally {
+                _isLoadingMore.value = false
             }
         }
     }

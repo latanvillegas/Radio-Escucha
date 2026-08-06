@@ -59,6 +59,7 @@ interface RadioBrowserApiService {
         @Query("state") state: String? = null,
         @Query("language") language: String? = null,
         @Query("limit") limit: Int = 50,
+        @Query("offset") offset: Int = 0,
         @Query("order") order: String = "votes",
         @Query("reverse") reverse: Boolean = true
     ): List<RadioBrowserStationDto>

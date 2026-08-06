@@ -32,6 +32,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
@@ -40,13 +41,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import kotlin.math.roundToInt
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -115,6 +120,10 @@ object StationLogoResolver {
             words.size == 1 -> words[0].take(2).uppercase()
             else -> "${words[0].first()}${words[1].first()}".uppercase()
         }
+    }
+
+    fun getLogoForStation(name: String, url: String, faviconUrl: String = ""): String? {
+        return getCandidateLogos(name, url, faviconUrl).firstOrNull()
     }
 
     fun getCandidateLogos(name: String, url: String, faviconUrl: String): List<String> {
@@ -245,11 +254,13 @@ fun RadioApp(
 
     var showAddDialog by remember { mutableStateOf(false) }
     var showSleepTimerMenu by remember { mutableStateOf(false) }
+    var showFullPlayer by remember { mutableStateOf(false) }
     var activeTab by remember { mutableStateOf(0) }
 
     // Handle system back button to return to first tab or close modals
-    BackHandler(enabled = activeTab != 0 || showAddDialog || showSleepTimerMenu) {
+    BackHandler(enabled = activeTab != 0 || showAddDialog || showSleepTimerMenu || showFullPlayer) {
         when {
+            showFullPlayer -> showFullPlayer = false
             showAddDialog -> showAddDialog = false
             showSleepTimerMenu -> showSleepTimerMenu = false
             activeTab != 0 -> activeTab = 0
@@ -557,7 +568,8 @@ fun RadioApp(
                                 onRandomStation = { viewModel.playRandomStation() },
                                 onVolumeChange = { viewModel.setVolume(it) },
                                 onCancelSleepTimer = { viewModel.cancelSleepTimer() },
-                                onShare = shareStation
+                                onShare = shareStation,
+                                onOpenFullScreen = { showFullPlayer = true }
                             )
                         }
 
@@ -623,7 +635,8 @@ fun RadioApp(
                             onRandomStation = { viewModel.playRandomStation() },
                             onVolumeChange = { viewModel.setVolume(it) },
                             onCancelSleepTimer = { viewModel.cancelSleepTimer() },
-                            onShare = shareStation
+                            onShare = shareStation,
+                            onOpenFullScreen = { showFullPlayer = true }
                         )
  
                         Spacer(modifier = Modifier.height(16.dp))
@@ -677,6 +690,31 @@ fun RadioApp(
                     }
                 )
             }
+
+            val activeStation = currentStation
+            if (showFullPlayer && activeStation != null) {
+                FullPlayerDialog(
+                    currentStation = activeStation,
+                    currentTrackTitle = currentTrackTitle,
+                    currentTrackArtist = currentTrackArtist,
+                    currentTrackArtworkUrl = currentTrackArtworkUrl,
+                    playbackStatus = playbackStatus,
+                    volume = volume,
+                    sleepSecondsLeft = sleepSecondsLeft,
+                    networkStatus = networkStatus,
+                    isFavorite = activeStation.isFavorite,
+                    onToggleFavorite = { viewModel.toggleFavorite(it) },
+                    onTogglePlay = { viewModel.togglePlayPause() },
+                    onStopPlayback = { viewModel.stopPlayback() },
+                    onPreviousStation = { viewModel.playPreviousStation() },
+                    onNextStation = { viewModel.playNextStation() },
+                    onRandomStation = { viewModel.playRandomStation() },
+                    onVolumeChange = { viewModel.setVolume(it) },
+                    onOpenSleepTimer = { showSleepTimerMenu = true },
+                    onShare = shareStation,
+                    onDismiss = { showFullPlayer = false }
+                )
+            }
         }
     }
 }
@@ -699,7 +737,8 @@ fun PlaybackDashboard(
     onRandomStation: () -> Unit = {},
     onVolumeChange: (Float) -> Unit,
     onCancelSleepTimer: () -> Unit,
-    onShare: (RadioStation) -> Unit
+    onShare: (RadioStation) -> Unit,
+    onOpenFullScreen: () -> Unit = {}
 ) {
     val iconScale = LocalIconScale.current
     Card(
@@ -883,8 +922,24 @@ fun PlaybackDashboard(
                         }
                     }
 
-                    // Actions group: Share & Stop
+                    // Actions group: Fullscreen, Share & Stop
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (currentStation != null) {
+                            IconButton(
+                                onClick = onOpenFullScreen,
+                                modifier = Modifier
+                                    .testTag("open_fullscreen_player_button")
+                                    .minimumInteractiveComponentSize()
+                            ) {
+                                Icon(
+                                    Icons.Default.Fullscreen,
+                                    contentDescription = "Pantalla completa",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(22.dp * iconScale)
+                                )
+                            }
+                        }
+
                         // Share button
                         IconButton(
                             onClick = { currentStation?.let { onShare(it) } },
@@ -916,9 +971,13 @@ fun PlaybackDashboard(
                     }
                 }
 
-                // Middle Station Metadata Row
+                // Middle Station Metadata Row (Clickable to open FullScreen Player)
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { if (currentStation != null) onOpenFullScreen() }
+                        .padding(vertical = 8.dp, horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Album Cover Image, Station Profile Logo, or Rotating Disc
@@ -974,7 +1033,7 @@ fun PlaybackDashboard(
                         Box(
                             modifier = Modifier
                                 .size(64.dp)
-                                .rotate(animatedAngle)
+                                .graphicsLayer { rotationZ = animatedAngle }
                                 .clip(CircleShape)
                                 .background(
                                     brush = Brush.sweepGradient(
@@ -1283,6 +1342,404 @@ fun PlaybackDashboard(
 }
 
 @Composable
+fun FullPlayerDialog(
+    currentStation: RadioStation,
+    currentTrackTitle: String?,
+    currentTrackArtist: String?,
+    currentTrackArtworkUrl: String?,
+    playbackStatus: PlaybackStatus,
+    volume: Float,
+    sleepSecondsLeft: Int?,
+    networkStatus: com.example.util.ConnectivityObserver.Status,
+    isFavorite: Boolean,
+    onToggleFavorite: (RadioStation) -> Unit,
+    onTogglePlay: () -> Unit,
+    onStopPlayback: () -> Unit,
+    onPreviousStation: () -> Unit,
+    onNextStation: () -> Unit,
+    onRandomStation: () -> Unit,
+    onVolumeChange: (Float) -> Unit,
+    onOpenSleepTimer: () -> Unit,
+    onShare: (RadioStation) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val isPlaying = playbackStatus == PlaybackStatus.PLAYING
+    val iconScale = LocalIconScale.current
+
+    // Disc rotation
+    val infiniteTransition = rememberInfiniteTransition(label = "full_disc_rotation")
+    val rotationAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(8000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "angle"
+    )
+    val animatedAngle = if (isPlaying) rotationAngle else 0f
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("full_player_surface"),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Ambient background gradient
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.85f),
+                                    MaterialTheme.colorScheme.background,
+                                    MaterialTheme.colorScheme.surface
+                                )
+                            )
+                        )
+                )
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .systemBarsPadding()
+                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Top Bar
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                Icons.Default.KeyboardArrowDown,
+                                contentDescription = "Minimizar",
+                                modifier = Modifier.size(32.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "REPRODUCIENDO AHORA",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 2.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            )
+                            val badgeText = when (playbackStatus) {
+                                PlaybackStatus.ERROR -> "ERROR ⚠️"
+                                PlaybackStatus.BUFFERING -> "CARGANDO..."
+                                PlaybackStatus.PLAYING -> "AL AIRE 🔴"
+                                else -> "EN PAUSA"
+                            }
+                            Text(
+                                badgeText,
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isPlaying) Color.Green else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                        }
+
+                        Row {
+                            IconButton(onClick = { onToggleFavorite(currentStation) }) {
+                                Icon(
+                                    if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                    contentDescription = "Favorito",
+                                    tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            IconButton(onClick = { onShare(currentStation) }) {
+                                Icon(
+                                    Icons.Default.Share,
+                                    contentDescription = "Compartir",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    // Main Album / Station Artwork Hero
+                    Box(
+                        modifier = Modifier
+                            .size(240.dp)
+                            .clip(RoundedCornerShape(32.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .shadow(16.dp, RoundedCornerShape(32.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (!currentTrackArtworkUrl.isNullOrBlank()) {
+                            coil.compose.AsyncImage(
+                                model = currentTrackArtworkUrl,
+                                contentDescription = "Carátula",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(32.dp)),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else {
+                            val logoUrl = remember(currentStation.name, currentStation.url, currentStation.faviconUrl) {
+                                StationLogoResolver.getLogoForStation(currentStation.name, currentStation.url, currentStation.faviconUrl)
+                            }
+                            // Large Rotating Vinyl / Disc Logo using graphicsLayer for hardware GPU rotation
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer { rotationZ = animatedAngle }
+                                    .clip(CircleShape)
+                                    .background(
+                                        brush = Brush.sweepGradient(
+                                            colors = listOf(
+                                                MaterialTheme.colorScheme.primary,
+                                                MaterialTheme.colorScheme.onPrimary,
+                                                MaterialTheme.colorScheme.primary
+                                            )
+                                        )
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (logoUrl != null) {
+                                    coil.compose.AsyncImage(
+                                        model = logoUrl,
+                                        contentDescription = currentStation.name,
+                                        modifier = Modifier
+                                            .size(100.dp)
+                                            .clip(CircleShape)
+                                            .graphicsLayer { rotationZ = -animatedAngle },
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Default.Radio,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .size(64.dp)
+                                            .graphicsLayer { rotationZ = -animatedAngle },
+                                        tint = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Track & Station Metadata
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        val hasTrackDetails = !currentTrackTitle.isNullOrBlank() || !currentTrackArtist.isNullOrBlank()
+                        if (hasTrackDetails) {
+                            Text(
+                                text = currentTrackTitle ?: currentStation.name,
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = (currentTrackArtist ?: currentStation.genre).uppercase(),
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    letterSpacing = 1.sp
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "📻 ${currentStation.name}",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                        } else {
+                            Text(
+                                text = currentStation.name,
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = currentStation.genre.uppercase(),
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    letterSpacing = 1.sp
+                                )
+                            )
+                        }
+
+                        val geoParts = listOfNotNull(
+                            currentStation.country.takeIf { it.isNotEmpty() },
+                            currentStation.region.takeIf { it.isNotEmpty() },
+                            currentStation.province.takeIf { it.isNotEmpty() }
+                        ).filter { it.isNotBlank() }
+
+                        if (geoParts.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = geoParts.joinToString(" • "),
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                )
+                            )
+                        }
+                    }
+
+                    // Audio Visualizer
+                    AudioVisualizer(
+                        isPlaying = isPlaying,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                    )
+
+                    // Large Playback Controls Cluster
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = onRandomStation,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Shuffle,
+                                contentDescription = "Aleatorio",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onPreviousStation,
+                            modifier = Modifier.size(56.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.SkipPrevious,
+                                contentDescription = "Anterior",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+
+                        // Big Central Play / Pause Floating Button
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
+                                .clickable { onTogglePlay() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (playbackStatus == PlaybackStatus.BUFFERING) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(36.dp),
+                                    strokeWidth = 3.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Icon(
+                                    if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                    contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(40.dp)
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = onNextStation,
+                            modifier = Modifier.size(56.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.SkipNext,
+                                contentDescription = "Siguiente",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onOpenSleepTimer,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                if (sleepSecondsLeft != null) Icons.Filled.Timer else Icons.Outlined.Timer,
+                                contentDescription = "Temporizador",
+                                tint = if (sleepSecondsLeft != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+
+                    // Volume Slider Bar
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            if (volume > 0.05f) Icons.Default.VolumeUp else Icons.Default.VolumeMute,
+                            contentDescription = "Volumen",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Slider(
+                            value = volume,
+                            onValueChange = onVolumeChange,
+                            modifier = Modifier.weight(1f),
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "${(volume * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            modifier = Modifier.width(36.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun SearchSuggestionsDropdown(
     suggestions: List<RadioViewModel.SearchSuggestion>,
     onSuggestionSelected: (RadioViewModel.SearchSuggestion) -> Unit,
@@ -1319,6 +1776,7 @@ fun SearchSuggestionsDropdown(
                     RadioViewModel.SuggestionType.COUNTRY -> Icons.Default.Public to MaterialTheme.colorScheme.secondary
                     RadioViewModel.SuggestionType.REGION -> Icons.Default.Place to MaterialTheme.colorScheme.tertiary
                     RadioViewModel.SuggestionType.GENRE -> Icons.Default.MusicNote to MaterialTheme.colorScheme.error
+                    RadioViewModel.SuggestionType.LANGUAGE -> Icons.Default.Language to MaterialTheme.colorScheme.primary
                     RadioViewModel.SuggestionType.KEYWORD -> Icons.Default.Search to MaterialTheme.colorScheme.primary
                 }
 
@@ -1394,24 +1852,42 @@ fun SearchAndFilterSection(
     suggestions: List<RadioViewModel.SearchSuggestion> = emptyList(),
     onSuggestionSelect: ((RadioViewModel.SearchSuggestion) -> Unit)? = null
 ) {
+    var isFocused by remember { mutableStateOf(false) }
+    var hasSubmitted by remember { mutableStateOf(false) }
+
     Column(modifier = Modifier.fillMaxWidth()) {
         // Search Input styled with Sophisticated Dark specifications
         OutlinedTextField(
             value = searchQuery,
-            onValueChange = onSearchQueryChange,
+            onValueChange = { query ->
+                hasSubmitted = false
+                onSearchQueryChange(query)
+            },
             modifier = Modifier
                 .fillMaxWidth()
+                .onFocusChanged { focusState -> isFocused = focusState.isFocused }
                 .testTag("search_stations_input"),
             placeholder = { Text("Buscar radios, países, regiones, géneros...", fontSize = 14.sp) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { onSearchQueryChange("") }) {
+                    IconButton(onClick = {
+                        hasSubmitted = true
+                        onSearchQueryChange("")
+                        focusManager.clearFocus()
+                    }) {
                         Icon(Icons.Default.Clear, contentDescription = "Limpiar consulta", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(
+                onSearch = {
+                    hasSubmitted = true
+                    focusManager.clearFocus()
+                }
+            ),
             shape = RoundedCornerShape(16.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -1426,10 +1902,11 @@ fun SearchAndFilterSection(
         )
 
         // Live Suggestions Dropdown
-        if (searchQuery.isNotBlank() && suggestions.isNotEmpty()) {
+        if (isFocused && !hasSubmitted && searchQuery.isNotBlank() && suggestions.isNotEmpty()) {
             SearchSuggestionsDropdown(
                 suggestions = suggestions,
                 onSuggestionSelected = { suggestion ->
+                    hasSubmitted = true
                     onSuggestionSelect?.invoke(suggestion) ?: onSearchQueryChange(suggestion.query)
                     focusManager.clearFocus()
                 }
@@ -2526,6 +3003,8 @@ fun DiscoverTab(
     val focusManager = LocalFocusManager.current
     val onlineSuggestions by viewModel.onlineSuggestions.collectAsStateWithLifecycle()
     val localStations by viewModel.stations.collectAsStateWithLifecycle()
+    val isLoadingMore by viewModel.isLoadingMore.collectAsStateWithLifecycle()
+    val canLoadMore by viewModel.canLoadMore.collectAsStateWithLifecycle()
 
     var activeCategoryFilter by remember { mutableStateOf("Más Votadas") }
 
@@ -2653,25 +3132,43 @@ fun DiscoverTab(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        var isOnlineSearchFocused by remember { mutableStateOf(false) }
+        var hasSubmittedOnlineSearch by remember { mutableStateOf(false) }
+
         // Online Search Box
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { query ->
+                hasSubmittedOnlineSearch = false
                 viewModel.searchRadioBrowser(query)
             },
             modifier = Modifier
                 .fillMaxWidth()
+                .onFocusChanged { focusState -> isOnlineSearchFocused = focusState.isFocused }
                 .testTag("radio_browser_search_input"),
-            placeholder = { Text("Buscar por nombre, país, ciudad, región o género...", fontSize = 14.sp) },
+            placeholder = { Text("Buscar por nombre, país, región, idioma o género...", fontSize = 14.sp) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { viewModel.loadRadioBrowserTopVoted(); activeCategoryFilter = "Más Votadas" }) {
+                    IconButton(onClick = {
+                        hasSubmittedOnlineSearch = true
+                        viewModel.loadRadioBrowserTopVoted()
+                        activeCategoryFilter = "Más Votadas"
+                        focusManager.clearFocus()
+                    }) {
                         Icon(Icons.Default.Clear, contentDescription = "Limpiar búsqueda", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(
+                onSearch = {
+                    hasSubmittedOnlineSearch = true
+                    viewModel.searchRadioBrowser(searchQuery)
+                    focusManager.clearFocus()
+                }
+            ),
             shape = RoundedCornerShape(16.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -2682,10 +3179,11 @@ fun DiscoverTab(
         )
 
         // Live Suggestions Dropdown for Online Search
-        if (searchQuery.isNotBlank() && onlineSuggestions.isNotEmpty()) {
+        if (isOnlineSearchFocused && !hasSubmittedOnlineSearch && searchQuery.isNotBlank() && onlineSuggestions.isNotEmpty()) {
             SearchSuggestionsDropdown(
                 suggestions = onlineSuggestions,
                 onSuggestionSelected = { suggestion ->
+                    hasSubmittedOnlineSearch = true
                     viewModel.searchRadioBrowser(suggestion.query)
                     focusManager.clearFocus()
                 }
@@ -2698,15 +3196,32 @@ fun DiscoverTab(
         val categories = listOf(
             "Más Votadas" to { viewModel.loadRadioBrowserTopVoted() },
             "Más Escuchadas" to { viewModel.loadRadioBrowserTopClicked() },
+            // Etiquetas / Géneros
             "Pop / Rock" to { viewModel.fetchRadioBrowserByTag("pop") },
             "Noticias" to { viewModel.fetchRadioBrowserByTag("news") },
             "Salsa" to { viewModel.fetchRadioBrowserByTag("salsa") },
+            "Cumbia" to { viewModel.fetchRadioBrowserByTag("cumbia") },
+            "Deportes" to { viewModel.fetchRadioBrowserByTag("sports") },
+            "Jazz" to { viewModel.fetchRadioBrowserByTag("jazz") },
+            // Idiomas
+            "Español" to { viewModel.fetchRadioBrowserByLanguage("spanish") },
+            "Inglés" to { viewModel.fetchRadioBrowserByLanguage("english") },
+            "Portugués" to { viewModel.fetchRadioBrowserByLanguage("portuguese") },
+            "Francés" to { viewModel.fetchRadioBrowserByLanguage("french") },
+            "Alemán" to { viewModel.fetchRadioBrowserByLanguage("german") },
+            // Países
             "Perú" to { viewModel.fetchRadioBrowserByCountry("Peru") },
             "México" to { viewModel.fetchRadioBrowserByCountry("Mexico") },
             "España" to { viewModel.fetchRadioBrowserByCountry("Spain") },
+            "EE.UU." to { viewModel.fetchRadioBrowserByCountry("United States") },
             "Argentina" to { viewModel.fetchRadioBrowserByCountry("Argentina") },
             "Chile" to { viewModel.fetchRadioBrowserByCountry("Chile") },
-            "Colombia" to { viewModel.fetchRadioBrowserByCountry("Colombia") }
+            "Colombia" to { viewModel.fetchRadioBrowserByCountry("Colombia") },
+            // Estados / Regiones / Provincias
+            "California" to { viewModel.fetchRadioBrowserByState("California") },
+            "Jalisco" to { viewModel.fetchRadioBrowserByState("Jalisco") },
+            "Baviera" to { viewModel.fetchRadioBrowserByState("Bavaria") },
+            "Antioquia" to { viewModel.fetchRadioBrowserByState("Antioquia") }
         )
 
         LazyRow(
@@ -2847,6 +3362,36 @@ fun DiscoverTab(
                         },
                         onShare = onShare
                     )
+                }
+
+                if (canLoadMore) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { viewModel.loadMoreStations() },
+                        enabled = !isLoadingMore,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp)
+                            .testTag("load_more_radios_button"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        )
+                    ) {
+                        if (isLoadingMore) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Cargando más radios...", fontSize = 14.sp)
+                        } else {
+                            Icon(Icons.Default.ExpandMore, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Mostrar más radios (${onlineStations.size} cargadas)", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
             }
         }
