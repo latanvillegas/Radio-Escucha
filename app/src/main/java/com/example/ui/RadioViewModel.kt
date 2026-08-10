@@ -1432,8 +1432,32 @@ class RadioViewModel(
             _radioBrowserLoading.value = true
             _radioBrowserError.value = null
             try {
-                val dtos = RadioBrowserApiClient.service.searchStations(state = state, limit = 40)
-                _radioBrowserStations.value = dtos.map { it.toRadioStation() }
+                val q = state.trim()
+                val rbDeferred = async {
+                    try { RadioBrowserApiClient.service.searchStations(state = q, limit = 35).map { it.toRadioStation() } } catch (e: Exception) { emptyList() }
+                }
+                val ghDeferred = async {
+                    try { MultiSourceRadioClients.fallbackGitHubCuratedList.filter { it.region.containsNormalized(q) || it.name.containsNormalized(q) } } catch (e: Exception) { emptyList() }
+                }
+                val fmDeferred = async {
+                    try {
+                        val apiResults = try { MultiSourceRadioClients.fmStreamService.searchFmStream(query = q).map { it.toRadioStation() } } catch (e: Exception) { emptyList() }
+                        val fallback = MultiSourceRadioClients.fallbackFmStreamList.filter { it.region.containsNormalized(q) || it.name.containsNormalized(q) }
+                        (apiResults + fallback).distinctBy { (it.name.lowercase().trim()) to (it.url.lowercase().trim()) }
+                    } catch (e: Exception) { emptyList() }
+                }
+                val ihDeferred = async {
+                    try {
+                        val response = MultiSourceRadioClients.iHeartService.getLiveStations(keywords = q, limit = 15)
+                        val dtos = response.hits ?: response.items ?: emptyList()
+                        dtos.map { it.toRadioStation() }
+                    } catch (e: Exception) { emptyList() }
+                }
+
+                val combined = (rbDeferred.await() + ghDeferred.await() + fmDeferred.await() + ihDeferred.await())
+                    .distinctBy { (it.name.lowercase().trim()) to (it.url.lowercase().trim()) }
+
+                _radioBrowserStations.value = combined
             } catch (e: Exception) {
                 _radioBrowserError.value = "Error al buscar por estado/región: ${e.localizedMessage ?: "Error de red"}"
                 _radioBrowserStations.value = emptyList()
@@ -1453,12 +1477,33 @@ class RadioViewModel(
             _radioBrowserError.value = null
             try {
                 val langAliases = mapLanguageAlias(language)
-                val list = mutableListOf<RadioStation>()
-                for (alias in langAliases) {
-                    val dtos = RadioBrowserApiClient.service.searchStations(language = alias, limit = 40)
-                    list.addAll(dtos.map { it.toRadioStation() })
+                val q = language.trim()
+
+                val rbDeferred = async {
+                    try {
+                        val list = mutableListOf<RadioStation>()
+                        for (alias in langAliases) {
+                            val dtos = RadioBrowserApiClient.service.searchStations(language = alias, limit = 25)
+                            list.addAll(dtos.map { it.toRadioStation() })
+                        }
+                        list
+                    } catch (e: Exception) { emptyList() }
                 }
-                _radioBrowserStations.value = list.distinctBy { station: RadioStation -> station.url }
+
+                val ghDeferred = async {
+                    try { MultiSourceRadioClients.fallbackGitHubCuratedList.filter { it.genre.containsNormalized(q) || it.name.containsNormalized(q) } } catch (e: Exception) { emptyList() }
+                }
+
+                val fmDeferred = async {
+                    try {
+                        MultiSourceRadioClients.fallbackFmStreamList.filter { it.genre.containsNormalized(q) || it.name.containsNormalized(q) }
+                    } catch (e: Exception) { emptyList() }
+                }
+
+                val combined = (rbDeferred.await() + ghDeferred.await() + fmDeferred.await())
+                    .distinctBy { (it.name.lowercase().trim()) to (it.url.lowercase().trim()) }
+
+                _radioBrowserStations.value = combined
             } catch (e: Exception) {
                 _radioBrowserError.value = "Error al buscar por idioma: ${e.localizedMessage ?: "Error de red"}"
                 _radioBrowserStations.value = emptyList()
