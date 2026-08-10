@@ -225,17 +225,50 @@ fun NavigationTabSwitcher(
                             }
                         }
                     } else {
-                        favorites.forEach { station ->
-                            StationItem(
-                                station = station,
-                                isPlaying = currentStation?.id == station.id && playbackStatus == PlaybackStatus.PLAYING,
-                                isBuffering = currentStation?.id == station.id && playbackStatus == PlaybackStatus.BUFFERING,
-                                onSelect = { viewModel.playStation(station) },
-                                onToggleFavorite = { viewModel.toggleFavorite(station) },
-                                onDelete = { viewModel.deleteStation(station) },
-                                onShare = onShare
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
+                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                            val columns = if (maxWidth >= 480.dp) 2 else 1
+                            if (columns > 1) {
+                                val chunked = favorites.chunked(columns)
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    chunked.forEach { rowItems ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            rowItems.forEach { station ->
+                                                Box(modifier = Modifier.weight(1f)) {
+                                                    StationItem(
+                                                        station = station,
+                                                        isPlaying = currentStation?.id == station.id && playbackStatus == PlaybackStatus.PLAYING,
+                                                        isBuffering = currentStation?.id == station.id && playbackStatus == PlaybackStatus.BUFFERING,
+                                                        onSelect = { viewModel.playStation(station) },
+                                                        onToggleFavorite = { viewModel.toggleFavorite(station) },
+                                                        onDelete = { viewModel.deleteStation(station) },
+                                                        onShare = onShare
+                                                    )
+                                                }
+                                            }
+                                            if (rowItems.size < columns) {
+                                                Spacer(modifier = Modifier.weight(1f))
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    favorites.forEach { station ->
+                                        StationItem(
+                                            station = station,
+                                            isPlaying = currentStation?.id == station.id && playbackStatus == PlaybackStatus.PLAYING,
+                                            isBuffering = currentStation?.id == station.id && playbackStatus == PlaybackStatus.BUFFERING,
+                                            onSelect = { viewModel.playStation(station) },
+                                            onToggleFavorite = { viewModel.toggleFavorite(station) },
+                                            onDelete = { viewModel.deleteStation(station) },
+                                            onShare = onShare
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -307,17 +340,50 @@ fun NavigationTabSwitcher(
                             }
                         }
                     } else {
-                        recentHistory.forEach { historyItem ->
-                            HistoryItem(
-                                historyItem = historyItem,
-                                onSelect = {
-                                    val station = filteredStations.find { it.id.toLong() == historyItem.stationId }
-                                    if (station != null) {
-                                        viewModel.playStation(station)
+                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                            val columns = if (maxWidth >= 480.dp) 2 else 1
+                            if (columns > 1) {
+                                val chunked = recentHistory.chunked(columns)
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    chunked.forEach { rowItems ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            rowItems.forEach { historyItem ->
+                                                Box(modifier = Modifier.weight(1f)) {
+                                                    HistoryItem(
+                                                        historyItem = historyItem,
+                                                        onSelect = {
+                                                            val station = filteredStations.find { it.id.toLong() == historyItem.stationId }
+                                                            if (station != null) {
+                                                                viewModel.playStation(station)
+                                                            }
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                            if (rowItems.size < columns) {
+                                                Spacer(modifier = Modifier.weight(1f))
+                                            }
+                                        }
                                     }
                                 }
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    recentHistory.forEach { historyItem ->
+                                        HistoryItem(
+                                            historyItem = historyItem,
+                                            onSelect = {
+                                                val station = filteredStations.find { it.id.toLong() == historyItem.stationId }
+                                                if (station != null) {
+                                                    viewModel.playStation(station)
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -455,6 +521,7 @@ fun DiscoverTab(
         val categories = listOf(
             "Más Votadas" to { viewModel.loadRadioBrowserTopVoted() },
             "Más Escuchadas" to { viewModel.loadRadioBrowserTopClicked() },
+            "Por Ubicación" to { viewModel.fetchRadioBrowserByDeviceLocation() },
             "Pop / Rock" to { viewModel.fetchRadioBrowserByTag("pop") },
             "Noticias" to { viewModel.fetchRadioBrowserByTag("news") },
             "Salsa" to { viewModel.fetchRadioBrowserByTag("salsa") },
@@ -601,21 +668,58 @@ fun DiscoverTab(
             }
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                pagedStations.forEach { station ->
-                    val isAlreadySaved = localStations.any { it.url == station.url || it.name.equals(station.name, ignoreCase = true) }
-
-                    RadioBrowserStationItem(
-                        station = station,
-                        isPlaying = currentStation?.url == station.url && playbackStatus == PlaybackStatus.PLAYING,
-                        isBuffering = currentStation?.url == station.url && playbackStatus == PlaybackStatus.BUFFERING,
-                        isSaved = isAlreadySaved,
-                        onSelect = { viewModel.playStation(station) },
-                        onSave = {
-                            viewModel.saveRadioBrowserStation(station)
-                            android.widget.Toast.makeText(context, "${station.name} guardada en mis radios", android.widget.Toast.LENGTH_SHORT).show()
-                        },
-                        onShare = onShare
-                    )
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val columns = if (maxWidth >= 480.dp) 2 else 1
+                    if (columns > 1) {
+                        val chunked = pagedStations.chunked(columns)
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            chunked.forEach { rowItems ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    rowItems.forEach { station ->
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            val isAlreadySaved = localStations.any { it.url == station.url || it.name.equals(station.name, ignoreCase = true) }
+                                            RadioBrowserStationItem(
+                                                station = station,
+                                                isPlaying = currentStation?.url == station.url && playbackStatus == PlaybackStatus.PLAYING,
+                                                isBuffering = currentStation?.url == station.url && playbackStatus == PlaybackStatus.BUFFERING,
+                                                isSaved = isAlreadySaved,
+                                                onSelect = { viewModel.playStation(station) },
+                                                onSave = {
+                                                    viewModel.saveRadioBrowserStation(station)
+                                                    android.widget.Toast.makeText(context, "${station.name} guardada en mis radios", android.widget.Toast.LENGTH_SHORT).show()
+                                                },
+                                                onShare = onShare
+                                            )
+                                        }
+                                    }
+                                    if (rowItems.size < columns) {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            pagedStations.forEach { station ->
+                                val isAlreadySaved = localStations.any { it.url == station.url || it.name.equals(station.name, ignoreCase = true) }
+                                RadioBrowserStationItem(
+                                    station = station,
+                                    isPlaying = currentStation?.url == station.url && playbackStatus == PlaybackStatus.PLAYING,
+                                    isBuffering = currentStation?.url == station.url && playbackStatus == PlaybackStatus.BUFFERING,
+                                    isSaved = isAlreadySaved,
+                                    onSelect = { viewModel.playStation(station) },
+                                    onSave = {
+                                        viewModel.saveRadioBrowserStation(station)
+                                        android.widget.Toast.makeText(context, "${station.name} guardada en mis radios", android.widget.Toast.LENGTH_SHORT).show()
+                                    },
+                                    onShare = onShare
+                                )
+                            }
+                        }
+                    }
                 }
 
                 val hasMoreChunks = onlineStations.size > pagedStations.size

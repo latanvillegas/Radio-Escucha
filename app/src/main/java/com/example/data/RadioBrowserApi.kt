@@ -56,6 +56,7 @@ interface RadioBrowserApiService {
         @Query("name") name: String? = null,
         @Query("tag") tag: String? = null,
         @Query("country") country: String? = null,
+        @Query("countrycode") countrycode: String? = null,
         @Query("state") state: String? = null,
         @Query("language") language: String? = null,
         @Query("limit") limit: Int = 50,

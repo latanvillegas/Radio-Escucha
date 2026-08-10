@@ -4,6 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -248,23 +251,50 @@ fun StationsList(
             }
         }
     } else {
-        LazyColumn(
-            modifier = modifier
-                .fillMaxWidth()
-                .testTag("stations_lazy_list"),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = contentPadding
-        ) {
-            items(filteredStations, key = { it.id }) { station ->
-                StationItem(
-                    station = station,
-                    isPlaying = currentStation?.id == station.id && playbackStatus == PlaybackStatus.PLAYING,
-                    isBuffering = currentStation?.id == station.id && playbackStatus == PlaybackStatus.BUFFERING,
-                    onSelect = onStationSelect,
-                    onToggleFavorite = onToggleFavorite,
-                    onDelete = onDeleteStation,
-                    onShare = onShare
-                )
+        BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+            val useGrid = maxWidth >= 500.dp
+            if (useGrid) {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 250.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("stations_lazy_grid"),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = contentPadding
+                ) {
+                    items(filteredStations, key = { it.id }) { station ->
+                        StationItem(
+                            station = station,
+                            isPlaying = currentStation?.id == station.id && playbackStatus == PlaybackStatus.PLAYING,
+                            isBuffering = currentStation?.id == station.id && playbackStatus == PlaybackStatus.BUFFERING,
+                            onSelect = onStationSelect,
+                            onToggleFavorite = onToggleFavorite,
+                            onDelete = onDeleteStation,
+                            onShare = onShare
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("stations_lazy_list"),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = contentPadding
+                ) {
+                    items(filteredStations, key = { it.id }) { station ->
+                        StationItem(
+                            station = station,
+                            isPlaying = currentStation?.id == station.id && playbackStatus == PlaybackStatus.PLAYING,
+                            isBuffering = currentStation?.id == station.id && playbackStatus == PlaybackStatus.BUFFERING,
+                            onSelect = onStationSelect,
+                            onToggleFavorite = onToggleFavorite,
+                            onDelete = onDeleteStation,
+                            onShare = onShare
+                        )
+                    }
+                }
             }
         }
     }

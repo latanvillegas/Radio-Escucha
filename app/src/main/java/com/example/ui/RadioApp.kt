@@ -286,130 +286,137 @@ fun RadioApp(
             containerColor = MaterialTheme.colorScheme.background
         ) { innerPadding ->
             if (isTablet) {
-                Row(
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(top = innerPadding.calculateTopPadding())
-                        .background(MaterialTheme.colorScheme.background)
+                        .background(MaterialTheme.colorScheme.background),
+                    contentAlignment = Alignment.TopCenter
                 ) {
-                    NavigationRail(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .width(80.dp),
-                        header = {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            FloatingActionButton(
-                                onClick = { showAddDialog = true },
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary,
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier
-                                    .size(56.dp)
-                                    .testTag("add_radio_fab_rail")
-                            ) {
-                                Icon(
-                                    Icons.Default.Add,
-                                    contentDescription = "Agregar radio",
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
-                    ) {
-                        val navItems = listOf(
-                            Triple(Icons.Filled.Home, Icons.Outlined.Home, "Inicio"),
-                            Triple(Icons.Filled.Explore, Icons.Outlined.Explore, "Descubrir"),
-                            Triple(Icons.Filled.LibraryMusic, Icons.Outlined.LibraryMusic, "Biblioteca"),
-                            Triple(Icons.Filled.Sync, Icons.Outlined.Sync, "Sincronizar")
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        navItems.forEachIndexed { index, item ->
-                            val isSelected = activeTab == index
-                            NavigationRailItem(
-                                selected = isSelected,
-                                onClick = { activeTab = index },
-                                icon = {
-                                    Icon(
-                                        if (isSelected) item.first else item.second,
-                                        contentDescription = item.third,
-                                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(24.dp * iconScale)
-                                    )
-                                },
-                                label = {
-                                    Text(
-                                        item.third,
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    )
-                                },
-                                colors = NavigationRailItemDefaults.colors(
-                                    indicatorColor = MaterialTheme.colorScheme.primaryContainer
-                                )
-                            )
-                        }
-                    }
-
                     Row(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 24.dp, vertical = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(24.dp)
+                            .widthIn(max = 1400.dp)
                     ) {
-                        Column(
+                        NavigationRail(
+                            containerColor = MaterialTheme.colorScheme.surface,
                             modifier = Modifier
-                                .weight(0.45f)
-                                .fillMaxHeight(),
-                            verticalArrangement = Arrangement.Top
+                                .fillMaxHeight()
+                                .width(80.dp),
+                            header = {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                FloatingActionButton(
+                                    onClick = { showAddDialog = true },
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                                    shape = RoundedCornerShape(16.dp),
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .testTag("add_radio_fab_rail")
+                                ) {
+                                    Icon(
+                                        Icons.Default.Add,
+                                        contentDescription = "Agregar radio",
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
                         ) {
-                            PlaybackDashboard(
-                                currentStation = currentStation,
-                                currentTrackTitle = currentTrackTitle,
-                                currentTrackArtist = currentTrackArtist,
-                                currentTrackArtworkUrl = currentTrackArtworkUrl,
-                                playbackStatus = playbackStatus,
-                                volume = volume,
-                                errorMessage = errorMessage,
-                                sleepSecondsLeft = sleepSecondsLeft,
-                                networkStatus = networkStatus,
-                                onTogglePlay = { viewModel.togglePlayPause() },
-                                onStopPlayback = { viewModel.stopPlayback() },
-                                onPreviousStation = { viewModel.playPreviousStation() },
-                                onNextStation = { viewModel.playNextStation() },
-                                onRandomStation = { viewModel.playRandomStation() },
-                                onVolumeChange = { viewModel.setVolume(it) },
-                                onCancelSleepTimer = { viewModel.cancelSleepTimer() },
-                                onShare = shareStation,
-                                onOpenFullScreen = { showFullPlayer = true }
+                            val navItems = listOf(
+                                Triple(Icons.Filled.Home, Icons.Outlined.Home, "Inicio"),
+                                Triple(Icons.Filled.Explore, Icons.Outlined.Explore, "Descubrir"),
+                                Triple(Icons.Filled.LibraryMusic, Icons.Outlined.LibraryMusic, "Biblioteca"),
+                                Triple(Icons.Filled.Sync, Icons.Outlined.Sync, "Sincronizar")
                             )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            navItems.forEachIndexed { index, item ->
+                                val isSelected = activeTab == index
+                                NavigationRailItem(
+                                    selected = isSelected,
+                                    onClick = { activeTab = index },
+                                    icon = {
+                                        Icon(
+                                            if (isSelected) item.first else item.second,
+                                            contentDescription = item.third,
+                                            tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(24.dp * iconScale)
+                                        )
+                                    },
+                                    label = {
+                                        Text(
+                                            item.third,
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        )
+                                    },
+                                    colors = NavigationRailItemDefaults.colors(
+                                        indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                )
+                            }
                         }
 
-                        Column(
+                        Row(
                             modifier = Modifier
-                                .weight(0.55f)
-                                .fillMaxHeight()
+                                .fillMaxSize()
+                                .padding(horizontal = 24.dp, vertical = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(24.dp)
                         ) {
-                            NavigationTabSwitcher(
-                                activeTab = activeTab,
-                                searchQuery = searchQuery,
-                                onSearchQueryChange = { viewModel.updateSearchQuery(it) },
-                                genresList = genresList,
-                                selectedGenre = selectedGenre,
-                                onGenreSelect = { viewModel.updateGenreFilter(it) },
-                                focusManager = focusManager,
-                                filteredStations = filteredStations,
-                                recentHistory = recentHistory,
-                                currentStation = currentStation,
-                                playbackStatus = playbackStatus,
-                                viewModel = viewModel,
-                                onActiveTabChange = { activeTab = it },
-                                onShare = shareStation,
-                                topBarOffsetHeightPx = topBarOffsetHeightPx,
-                                bottomBarOffsetHeightPx = bottomBarOffsetHeightPx,
-                                nestedScrollConnection = nestedScrollConnection
-                            )
+                            Column(
+                                modifier = Modifier
+                                    .weight(0.40f)
+                                    .fillMaxHeight(),
+                                verticalArrangement = Arrangement.Top
+                            ) {
+                                PlaybackDashboard(
+                                    currentStation = currentStation,
+                                    currentTrackTitle = currentTrackTitle,
+                                    currentTrackArtist = currentTrackArtist,
+                                    currentTrackArtworkUrl = currentTrackArtworkUrl,
+                                    playbackStatus = playbackStatus,
+                                    volume = volume,
+                                    errorMessage = errorMessage,
+                                    sleepSecondsLeft = sleepSecondsLeft,
+                                    networkStatus = networkStatus,
+                                    onTogglePlay = { viewModel.togglePlayPause() },
+                                    onStopPlayback = { viewModel.stopPlayback() },
+                                    onPreviousStation = { viewModel.playPreviousStation() },
+                                    onNextStation = { viewModel.playNextStation() },
+                                    onRandomStation = { viewModel.playRandomStation() },
+                                    onVolumeChange = { viewModel.setVolume(it) },
+                                    onCancelSleepTimer = { viewModel.cancelSleepTimer() },
+                                    onShare = shareStation,
+                                    onOpenFullScreen = { showFullPlayer = true }
+                                )
+                            }
+
+                            Column(
+                                modifier = Modifier
+                                    .weight(0.60f)
+                                    .fillMaxHeight()
+                            ) {
+                                NavigationTabSwitcher(
+                                    activeTab = activeTab,
+                                    searchQuery = searchQuery,
+                                    onSearchQueryChange = { viewModel.updateSearchQuery(it) },
+                                    genresList = genresList,
+                                    selectedGenre = selectedGenre,
+                                    onGenreSelect = { viewModel.updateGenreFilter(it) },
+                                    focusManager = focusManager,
+                                    filteredStations = filteredStations,
+                                    recentHistory = recentHistory,
+                                    currentStation = currentStation,
+                                    playbackStatus = playbackStatus,
+                                    viewModel = viewModel,
+                                    onActiveTabChange = { activeTab = it },
+                                    onShare = shareStation,
+                                    topBarOffsetHeightPx = topBarOffsetHeightPx,
+                                    bottomBarOffsetHeightPx = bottomBarOffsetHeightPx,
+                                    nestedScrollConnection = nestedScrollConnection
+                                )
+                            }
                         }
                     }
                 }

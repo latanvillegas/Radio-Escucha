@@ -1,5 +1,7 @@
 package com.example
 
+import android.os.Build
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -30,6 +32,13 @@ class MainActivity : ComponentActivity() {
         
         // Support edge-to-edge status & nav bar coloring natively
         enableEdgeToEdge()
+        
+        // Request Notification permission on Android 13+ (API 33) to prevent Foreground Service crashes
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
+            }
+        }
         
         // Hide system bars for immersive mode
         val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)

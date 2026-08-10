@@ -151,6 +151,7 @@ class RadioViewModel(
         data class Query(val query: String) : RadioSearchMode()
         data class Tag(val tag: String) : RadioSearchMode()
         data class Country(val country: String) : RadioSearchMode()
+        data class Location(val countryCode: String, val countryName: String) : RadioSearchMode()
         data class StateMode(val state: String) : RadioSearchMode()
         data class Language(val language: String) : RadioSearchMode()
         object TopVoted : RadioSearchMode()
@@ -1242,6 +1243,45 @@ class RadioViewModel(
         }
     }
 
+    fun fetchRadioBrowserByDeviceLocation() {
+        val locale = java.util.Locale.getDefault()
+        val countryCode = locale.country // e.g. "PE", "MX", "ES", "US", "AR"
+        val englishCountry = locale.getDisplayCountry(java.util.Locale.ENGLISH)
+        val spanishCountry = locale.getDisplayCountry(java.util.Locale("es"))
+        val targetCountryName = if (spanishCountry.isNotBlank()) spanishCountry else englishCountry
+
+        _radioBrowserSearchQuery.value = targetCountryName
+        currentOffset = 0
+        _canLoadMore.value = true
+        currentSearchMode = RadioSearchMode.Location(countryCode, targetCountryName)
+
+        viewModelScope.launch(Dispatchers.IO) {
+            _radioBrowserLoading.value = true
+            _radioBrowserError.value = null
+            try {
+                var dtos = emptyList<com.example.data.RadioBrowserStationDto>()
+                if (countryCode.isNotBlank()) {
+                    dtos = RadioBrowserApiClient.service.searchStations(countrycode = countryCode.lowercase(), limit = 40)
+                }
+                if (dtos.isEmpty() && englishCountry.isNotBlank()) {
+                    dtos = RadioBrowserApiClient.service.searchStations(country = englishCountry, limit = 40)
+                }
+                if (dtos.isEmpty() && targetCountryName.isNotBlank()) {
+                    dtos = RadioBrowserApiClient.service.searchStations(country = targetCountryName, limit = 40)
+                }
+                _radioBrowserStations.value = dtos.map { it.toRadioStation() }
+                if (_radioBrowserStations.value.isEmpty()) {
+                    _radioBrowserError.value = "No se encontraron emisoras en línea para tu país ($targetCountryName)."
+                }
+            } catch (e: Exception) {
+                _radioBrowserError.value = "Error al buscar radios por ubicación: ${e.localizedMessage ?: "Error de red"}"
+                _radioBrowserStations.value = emptyList()
+            } finally {
+                _radioBrowserLoading.value = false
+            }
+        }
+    }
+
     fun fetchRadioBrowserByState(state: String) {
         _radioBrowserSearchQuery.value = state
         currentOffset = 0
@@ -1300,6 +1340,16 @@ class RadioViewModel(
                     is RadioSearchMode.Query -> fetchRadioBrowserStationsExpanded(mode.query, limitPerQuery = 40, offset = currentOffset)
                     is RadioSearchMode.Tag -> RadioBrowserApiClient.service.searchStations(tag = mode.tag.lowercase(), limit = 40, offset = currentOffset).map { it.toRadioStation() }
                     is RadioSearchMode.Country -> RadioBrowserApiClient.service.searchStations(country = mode.country, limit = 40, offset = currentOffset).map { it.toRadioStation() }
+                    is RadioSearchMode.Location -> {
+                        var dtos = emptyList<com.example.data.RadioBrowserStationDto>()
+                        if (mode.countryCode.isNotBlank()) {
+                            dtos = RadioBrowserApiClient.service.searchStations(countrycode = mode.countryCode.lowercase(), limit = 40, offset = currentOffset)
+                        }
+                        if (dtos.isEmpty() && mode.countryName.isNotBlank()) {
+                            dtos = RadioBrowserApiClient.service.searchStations(country = mode.countryName, limit = 40, offset = currentOffset)
+                        }
+                        dtos.map { it.toRadioStation() }
+                    }
                     is RadioSearchMode.StateMode -> RadioBrowserApiClient.service.searchStations(state = mode.state, limit = 40, offset = currentOffset).map { it.toRadioStation() }
                     is RadioSearchMode.Language -> {
                         val langAliases = mapLanguageAlias(mode.language)
