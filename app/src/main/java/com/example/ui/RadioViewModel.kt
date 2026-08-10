@@ -161,6 +161,34 @@ class RadioViewModel(
     private val _radioBrowserStations = MutableStateFlow<List<RadioStation>>(emptyList())
     val radioBrowserStations: StateFlow<List<RadioStation>> = _radioBrowserStations.asStateFlow()
 
+    private val _discoverVisibleCount = MutableStateFlow(25)
+    val discoverVisibleCount: StateFlow<Int> = _discoverVisibleCount.asStateFlow()
+
+    val pagedDiscoverStations: StateFlow<List<RadioStation>> = combine(
+        _radioBrowserStations, _discoverVisibleCount
+    ) { list, count ->
+        list.take(count)
+    }
+    .flowOn(Dispatchers.Default)
+    .stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    fun loadMoreDiscoverChunk() {
+        _discoverVisibleCount.value += 25
+    }
+
+    fun resetDiscoverChunk() {
+        _discoverVisibleCount.value = 25
+    }
+
+    fun updateRadioBrowserStations(stations: List<RadioStation>, provider: String = _selectedRadioProvider.value, query: String = _radioBrowserSearchQuery.value) {
+        _radioBrowserStations.value = stations
+        DiscoverCacheManager.saveCachedStations(getApplication(), provider, query, stations)
+    }
+
     private val _radioBrowserLoading = MutableStateFlow(false)
     val radioBrowserLoading: StateFlow<Boolean> = _radioBrowserLoading.asStateFlow()
 
@@ -536,12 +564,20 @@ class RadioViewModel(
     fun setRadioProvider(provider: String) {
         _selectedRadioProvider.value = provider
         _radioBrowserSearchQuery.value = ""
+        resetDiscoverChunk()
         loadOnlineStationsForCurrentProvider()
     }
 
     fun loadOnlineStationsForCurrentProvider() {
         val provider = _selectedRadioProvider.value
         val query = _radioBrowserSearchQuery.value
+
+        // Stale-While-Revalidate: Warm load from disk cache instantly (0 ms)
+        val cached = DiscoverCacheManager.getCachedStations(getApplication(), provider, query)
+        if (cached.isNotEmpty()) {
+            _radioBrowserStations.value = cached
+        }
+
         when (provider) {
             "Todas" -> performGlobalMultiApiSearch(query)
             "iHeartRadio" -> fetchIHeartRadioStations(query)
@@ -838,6 +874,7 @@ class RadioViewModel(
     fun searchRadioBrowser(query: String) {
         _radioBrowserSearchQuery.value = query
         val provider = _selectedRadioProvider.value
+        resetDiscoverChunk()
         if (query.isBlank()) {
             loadOnlineStationsForCurrentProvider()
             return
@@ -846,6 +883,12 @@ class RadioViewModel(
         currentOffset = 0
         _canLoadMore.value = true
         currentSearchMode = RadioSearchMode.Query(query)
+
+        // Warm cache lookup for search queries
+        val cached = DiscoverCacheManager.getCachedStations(getApplication(), provider, query)
+        if (cached.isNotEmpty()) {
+            _radioBrowserStations.value = cached
+        }
 
         when (provider) {
             "Todas" -> performGlobalMultiApiSearch(query)
@@ -859,10 +902,12 @@ class RadioViewModel(
                     _radioBrowserError.value = null
                     try {
                         val stations = fetchRadioBrowserStationsExpanded(query.trim(), limitPerQuery = 40, offset = 0)
-                        _radioBrowserStations.value = stations
+                        updateRadioBrowserStations(stations, provider, query)
                     } catch (e: Exception) {
                         _radioBrowserError.value = "Error al buscar en Radio Browser: ${e.localizedMessage ?: "Error de red"}"
-                        _radioBrowserStations.value = emptyList()
+                        if (_radioBrowserStations.value.isEmpty()) {
+                            _radioBrowserStations.value = emptyList()
+                        }
                     } finally {
                         _radioBrowserLoading.value = false
                     }
@@ -974,10 +1019,12 @@ class RadioViewModel(
                 val combined = (rbList + ghList + somaList + ihList + fmList)
                     .distinctBy { (it.name.lowercase().trim()) to (it.url.lowercase().trim()) }
 
-                _radioBrowserStations.value = combined
+                updateRadioBrowserStations(combined)
             } catch (e: Exception) {
                 _radioBrowserError.value = "Error en la búsqueda multifuente: ${e.localizedMessage}"
-                _radioBrowserStations.value = emptyList()
+                if (_radioBrowserStations.value.isEmpty()) {
+                    _radioBrowserStations.value = emptyList()
+                }
             } finally {
                 _radioBrowserLoading.value = false
             }

@@ -1,0 +1,856 @@
+package com.example.ui.components
+
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeMute
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import coil.compose.AsyncImage
+import com.example.data.RadioStation
+import com.example.ui.PlaybackStatus
+import com.example.ui.theme.LocalIconScale
+import com.example.util.ConnectivityObserver
+import kotlin.math.roundToInt
+
+private fun formatTimeLeft(seconds: Int?): String {
+    if (seconds == null) return "00:00"
+    val mins = seconds / 60
+    val secs = seconds % 60
+    return String.format("%02d:%02d", mins, secs)
+}
+
+@Composable
+fun FullPlayerDialog(
+    currentStation: RadioStation,
+    currentTrackTitle: String?,
+    currentTrackArtist: String?,
+    currentTrackArtworkUrl: String?,
+    playbackStatus: PlaybackStatus,
+    volume: Float,
+    sleepSecondsLeft: Int?,
+    networkStatus: ConnectivityObserver.Status,
+    isFavorite: Boolean,
+    onToggleFavorite: (RadioStation) -> Unit,
+    onTogglePlay: () -> Unit,
+    onStopPlayback: () -> Unit,
+    onPreviousStation: () -> Unit,
+    onNextStation: () -> Unit,
+    onRandomStation: () -> Unit,
+    onVolumeChange: (Float) -> Unit,
+    onOpenSleepTimer: () -> Unit,
+    onShare: (RadioStation) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val isPlaying = playbackStatus == PlaybackStatus.PLAYING
+    val iconScale = LocalIconScale.current
+
+    // Disc rotation
+    val infiniteTransition = rememberInfiniteTransition(label = "full_disc_rotation")
+    val rotationAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(8000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "angle"
+    )
+    val animatedAngle = if (isPlaying) rotationAngle else 0f
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("full_player_surface"),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Ambient background gradient
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.85f),
+                                    MaterialTheme.colorScheme.background,
+                                    MaterialTheme.colorScheme.surface
+                                )
+                            )
+                        )
+                )
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .systemBarsPadding()
+                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Top Bar
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                Icons.Default.KeyboardArrowDown,
+                                contentDescription = "Minimizar",
+                                modifier = Modifier.size(32.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "REPRODUCIENDO AHORA",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 2.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            )
+                            val badgeText = when (playbackStatus) {
+                                PlaybackStatus.ERROR -> "ERROR ⚠️"
+                                PlaybackStatus.BUFFERING -> "CARGANDO..."
+                                PlaybackStatus.PLAYING -> "AL AIRE 🔴"
+                                else -> "EN PAUSA"
+                            }
+                            Text(
+                                badgeText,
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isPlaying) Color.Green else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                        }
+
+                        Row {
+                            IconButton(onClick = { onToggleFavorite(currentStation) }) {
+                                Icon(
+                                    if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                    contentDescription = "Favorito",
+                                    tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            IconButton(onClick = { onShare(currentStation) }) {
+                                Icon(
+                                    Icons.Default.Share,
+                                    contentDescription = "Compartir",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    // Main Album / Station Artwork Hero
+                    Box(
+                        modifier = Modifier
+                            .size(240.dp)
+                            .clip(RoundedCornerShape(32.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .shadow(16.dp, RoundedCornerShape(32.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (!currentTrackArtworkUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = currentTrackArtworkUrl,
+                                contentDescription = "Carátula",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(32.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            val logoUrl = remember(currentStation.name, currentStation.url, currentStation.faviconUrl) {
+                                StationLogoResolver.getLogoForStation(currentStation.name, currentStation.url, currentStation.faviconUrl)
+                            }
+                            // Large Rotating Vinyl / Disc Logo using graphicsLayer for hardware GPU rotation
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer { rotationZ = animatedAngle }
+                                    .clip(CircleShape)
+                                    .background(
+                                        brush = Brush.sweepGradient(
+                                            colors = listOf(
+                                                MaterialTheme.colorScheme.primary,
+                                                MaterialTheme.colorScheme.onPrimary,
+                                                MaterialTheme.colorScheme.primary
+                                            )
+                                        )
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (logoUrl != null) {
+                                    AsyncImage(
+                                        model = logoUrl,
+                                        contentDescription = currentStation.name,
+                                        modifier = Modifier
+                                            .size(100.dp)
+                                            .clip(CircleShape)
+                                            .graphicsLayer { rotationZ = -animatedAngle },
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Default.Radio,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .size(64.dp)
+                                            .graphicsLayer { rotationZ = -animatedAngle },
+                                        tint = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Track & Station Metadata
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        val hasTrackDetails = !currentTrackTitle.isNullOrBlank() || !currentTrackArtist.isNullOrBlank()
+                        if (hasTrackDetails) {
+                            Text(
+                                text = currentTrackTitle ?: currentStation.name,
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = (currentTrackArtist ?: currentStation.genre).uppercase(),
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    letterSpacing = 1.sp
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "📻 ${currentStation.name}",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                        } else {
+                            Text(
+                                text = currentStation.name,
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = currentStation.genre.uppercase(),
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    letterSpacing = 1.sp
+                                )
+                            )
+                        }
+
+                        val geoParts = listOfNotNull(
+                            currentStation.country.takeIf { it.isNotEmpty() },
+                            currentStation.region.takeIf { it.isNotEmpty() },
+                            currentStation.province.takeIf { it.isNotEmpty() }
+                        ).filter { it.isNotBlank() }
+
+                        if (geoParts.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = geoParts.joinToString(" • "),
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                )
+                            )
+                        }
+                    }
+
+                    // Audio Visualizer
+                    AudioVisualizer(
+                        isPlaying = isPlaying,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                    )
+
+                    // Large Playback Controls Cluster
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = onRandomStation,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Shuffle,
+                                contentDescription = "Aleatorio",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onPreviousStation,
+                            modifier = Modifier.size(56.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.SkipPrevious,
+                                contentDescription = "Anterior",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
+                                .clickable { onTogglePlay() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (playbackStatus == PlaybackStatus.BUFFERING) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(36.dp),
+                                    strokeWidth = 3.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Icon(
+                                    if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                    contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(40.dp)
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = onNextStation,
+                            modifier = Modifier.size(56.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.SkipNext,
+                                contentDescription = "Siguiente",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onOpenSleepTimer,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                if (sleepSecondsLeft != null) Icons.Filled.Timer else Icons.Outlined.Timer,
+                                contentDescription = "Temporizador",
+                                tint = if (sleepSecondsLeft != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+
+                    // Volume Slider Bar
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            if (volume > 0.05f) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeMute,
+                            contentDescription = "Volumen",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Slider(
+                            value = volume,
+                            onValueChange = onVolumeChange,
+                            modifier = Modifier.weight(1f),
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "${(volume * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            modifier = Modifier.width(36.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AddStationDialog(
+    onDismiss: () -> Unit,
+    onAddStation: (String, String, String, String, String, String, String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var url by remember { mutableStateOf("") }
+    var genre by remember { mutableStateOf("") }
+    var country by remember { mutableStateOf("") }
+    var region by remember { mutableStateOf("") }
+    var province by remember { mutableStateOf("") }
+    var district by remember { mutableStateOf("") }
+
+    var nameError by remember { mutableStateOf(false) }
+    var urlError by remember { mutableStateOf(false) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .testTag("add_station_dialog_surface")
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "Agregar Estación",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = {
+                        name = it
+                        nameError = false
+                    },
+                    label = { Text("Nombre de la radio") },
+                    isError = nameError,
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("add_station_name_input")
+                )
+                if (nameError) {
+                    Text(
+                        "El nombre no puede estar vacío",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.align(Alignment.Start)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = {
+                        url = it
+                        urlError = false
+                    },
+                    label = { Text("URL de la señal en vivo (Stream)") },
+                    placeholder = { Text("http://... o https://...") },
+                    isError = urlError,
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("add_station_url_input")
+                )
+                if (urlError) {
+                    Text(
+                        "Ingresa una URL válida (ej: http://...)",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.align(Alignment.Start)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedTextField(
+                    value = genre,
+                    onValueChange = { genre = it },
+                    label = { Text("Género / Categoría (ej: Pop, Rock, Jazz)") },
+                    placeholder = { Text("Varios") },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("add_station_genre_input")
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = country,
+                        onValueChange = { country = it },
+                        label = { Text("País", fontSize = 12.sp) },
+                        placeholder = { Text("ej: Perú") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("add_station_country_input")
+                    )
+                    OutlinedTextField(
+                        value = region,
+                        onValueChange = { region = it },
+                        label = { Text("Región", fontSize = 12.sp) },
+                        placeholder = { Text("ej: Lima") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("add_station_region_input")
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = province,
+                        onValueChange = { province = it },
+                        label = { Text("Provincia", fontSize = 12.sp) },
+                        placeholder = { Text("ej: Lima") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("add_station_province_input")
+                    )
+                    OutlinedTextField(
+                        value = district,
+                        onValueChange = { district = it },
+                        label = { Text("Distrito", fontSize = 12.sp) },
+                        placeholder = { Text("ej: Miraflores") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("add_station_district_input")
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.testTag("cancel_add_button")
+                    ) {
+                        Text("Cancelar")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            var hasErr = false
+                            if (name.trim().isEmpty()) {
+                                nameError = true
+                                hasErr = true
+                            }
+                            val trimmedUrl = url.trim()
+                            if (trimmedUrl.isEmpty() || (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://"))) {
+                                urlError = true
+                                hasErr = true
+                            }
+                            if (!hasErr) {
+                                onAddStation(name, url, genre, country, region, province, district)
+                            }
+                        },
+                        modifier = Modifier.testTag("confirm_add_button")
+                    ) {
+                        Text("Guardar")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SleepTimerDialog(
+    currentSecondsLeft: Int?,
+    onDismiss: () -> Unit,
+    onSelectMinutes: (Int) -> Unit
+) {
+    var showCustomPicker by remember { mutableStateOf(false) }
+    var customHours by remember { mutableStateOf(0) }
+    var customMinutes by remember { mutableStateOf(30) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .testTag("sleep_timer_dialog_surface")
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "Temporizador de Apagado",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                if (!showCustomPicker) {
+                    Text(
+                        text = if (currentSecondsLeft != null) {
+                            "Temporizador activo. Apagando en: ${formatTimeLeft(currentSecondsLeft)}"
+                        } else {
+                            "La radio se apagará automáticamente después del tiempo seleccionado."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 16.dp),
+                        textAlign = TextAlign.Center
+                    )
+
+                    val options = listOf(
+                        15 to "15 Minutos",
+                        30 to "30 Minutos",
+                        45 to "45 Minutos",
+                        60 to "1 Hora"
+                    )
+
+                    options.forEach { (mins, label) ->
+                        OutlinedButton(
+                            onClick = { onSelectMinutes(mins) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .testTag("sleep_timer_btn_$mins")
+                        ) {
+                            Text(label)
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = { showCustomPicker = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .testTag("sleep_timer_btn_custom"),
+                        border = BorderStroke(1.dp, Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)))
+                    ) {
+                        Icon(
+                            Icons.Default.Edit, 
+                            contentDescription = null, 
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Personalizado", color = MaterialTheme.colorScheme.primary)
+                    }
+
+                    if (currentSecondsLeft != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = { onSelectMinutes(0) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("sleep_timer_btn_cancel")
+                        ) {
+                            Text("Cancelar Temporizador")
+                        }
+                    }
+                } else {
+                    Text(
+                        "Elige el tiempo (Máx 12h)",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TimeValuePicker(
+                            value = customHours,
+                            onValueChange = { customHours = it },
+                            label = "Horas",
+                            range = 0..12
+                        )
+                        
+                        Text(
+                            ":",
+                            style = MaterialTheme.typography.displaySmall,
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        )
+
+                        TimeValuePicker(
+                            value = customMinutes,
+                            onValueChange = { customMinutes = it },
+                            label = "Minutos",
+                            range = 0..59
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    val totalMinutes = (customHours * 60) + customMinutes
+                    Text(
+                        if (totalMinutes > 0) "Total: $totalMinutes minutos" else "Selecciona un tiempo",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TextButton(
+                            onClick = { showCustomPicker = false },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Volver")
+                        }
+                        Button(
+                            onClick = {
+                                if (totalMinutes > 0) {
+                                    onSelectMinutes(totalMinutes)
+                                }
+                            },
+                            enabled = totalMinutes > 0,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Iniciar")
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("Cerrar")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimeValuePicker(
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    label: String,
+    range: IntRange
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        IconButton(
+            onClick = { if (value < range.last) onValueChange(value + 1) },
+            enabled = value < range.last
+        ) {
+            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Aumentar $label")
+        }
+        
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.width(72.dp)
+        ) {
+            Text(
+                text = value.toString().padStart(2, '0'),
+                style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold),
+                modifier = Modifier.padding(vertical = 12.dp),
+                textAlign = TextAlign.Center
+            )
+        }
+        
+        IconButton(
+            onClick = { if (value > range.first) onValueChange(value - 1) },
+            enabled = value > range.first
+        ) {
+            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Disminuir $label")
+        }
+        
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
