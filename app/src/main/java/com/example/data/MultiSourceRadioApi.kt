@@ -200,6 +200,44 @@ interface ITunesSearchApiService {
     ): ITunesSearchResponse
 }
 
+// ==========================================
+// 6. IP GeoLocation API Model & Services
+// ==========================================
+data class IpGeoLocationResponse(
+    @Json(name = "status") val status: String? = null,
+    @Json(name = "country") val country: String? = null,
+    @Json(name = "country_name") val countryName: String? = null,
+    @Json(name = "countryCode") val countryCode: String? = null,
+    @Json(name = "country_code") val countryCodeAlt: String? = null,
+    @Json(name = "regionName") val regionName: String? = null,
+    @Json(name = "region") val region: String? = null,
+    @Json(name = "city") val city: String? = null,
+    @Json(name = "lat") val lat: Double? = null,
+    @Json(name = "latitude") val latitude: Double? = null,
+    @Json(name = "lon") val lon: Double? = null,
+    @Json(name = "longitude") val longitude: Double? = null,
+    @Json(name = "timezone") val timezone: String? = null,
+    @Json(name = "query") val query: String? = null,
+    @Json(name = "ip") val ip: String? = null
+) {
+    fun resolvedCountryCode(): String = countryCode ?: countryCodeAlt ?: ""
+    fun resolvedCountry(): String = country ?: countryName ?: ""
+    fun resolvedState(): String = regionName ?: region ?: ""
+    fun resolvedCity(): String = city ?: ""
+    fun resolvedLat(): Double? = lat ?: latitude
+    fun resolvedLon(): Double? = lon ?: longitude
+}
+
+interface IpGeoApiService {
+    @GET("json")
+    suspend fun getGeoLocation(): IpGeoLocationResponse
+}
+
+interface IpApiCoService {
+    @GET("json/")
+    suspend fun getGeoLocation(): IpGeoLocationResponse
+}
+
 object MultiSourceRadioClients {
     private val moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
@@ -259,6 +297,24 @@ object MultiSourceRadioClients {
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
             .create(FmStreamApiService::class.java)
+    }
+
+    val ipGeoService: IpGeoApiService by lazy {
+        Retrofit.Builder()
+            .baseUrl("http://ip-api.com/")
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(IpGeoApiService::class.java)
+    }
+
+    val ipApiCoService: IpApiCoService by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://ipapi.co/")
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(IpApiCoService::class.java)
     }
 
     // Static fallback list of FMStream curated high quality streams with logos

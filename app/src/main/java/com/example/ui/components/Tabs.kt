@@ -1,7 +1,10 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -20,7 +23,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -417,8 +422,28 @@ fun DiscoverTab(
     val localStations by viewModel.stations.collectAsStateWithLifecycle()
     val isLoadingMore by viewModel.isLoadingMore.collectAsStateWithLifecycle()
     val canLoadMore by viewModel.canLoadMore.collectAsStateWithLifecycle()
+    val userDetectedLoc by viewModel.userDetectedLocationInfo.collectAsStateWithLifecycle()
+    val isDetectingIp by viewModel.isDetectingIpLocation.collectAsStateWithLifecycle()
+    val currentStation by viewModel.currentStation.collectAsStateWithLifecycle()
+    val playbackStatus by viewModel.playbackStatus.collectAsStateWithLifecycle()
 
-    var activeCategoryFilter by remember { mutableStateOf("Más Votadas") }
+    var activeCategoryFilter by remember { mutableStateOf("Por Ubicación") }
+    var showLocationDialog by remember { mutableStateOf(false) }
+
+    if (showLocationDialog) {
+        LocationSelectorDialog(
+            currentLocation = userDetectedLoc,
+            onDismiss = { showLocationDialog = false },
+            onSelectLocation = { countryName, countryCode, stateName ->
+                viewModel.setUserManualLocation(countryName, countryCode, stateName)
+                activeCategoryFilter = "Por Ubicación"
+            },
+            onResetAutoIp = {
+                viewModel.resetToAutoIpLocation()
+                activeCategoryFilter = "Por Ubicación"
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -426,7 +451,7 @@ fun DiscoverTab(
             .verticalScroll(rememberScrollState())
             .padding(bottom = with(density) { (80.dp.toPx() - bottomBarOffsetHeightPx).toDp() })
     ) {
-        // Compact Source Provider Chips
+        // Compact Source Provider Chips & Location Chip
         val providerList = listOf(
             "Todas" to "Todas",
             "Radio-Browser" to "Radio-Browser",
@@ -438,8 +463,49 @@ fun DiscoverTab(
 
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            item {
+                val locText = userDetectedLoc
+                    ?.replace("📍 ", "")
+                    ?.replace("🌐 ", "")
+                    ?.replace(" (IP)", "")
+                    ?.replace(" (Locale)", "")
+                    ?.replace(" (Seleccionado)", "")
+                    ?.trim()
+                    ?.ifBlank { "Ninguno" } ?: "Ninguno"
+                val hasLocation = locText != "Ninguno" && locText != "Sin filtro"
+
+                Surface(
+                    onClick = { showLocationDialog = true },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (hasLocation) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    contentColor = if (hasLocation) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("location_selector_chip")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.LocationOn,
+                            contentDescription = "Ubicación",
+                            modifier = Modifier.size(15.dp),
+                            tint = if (hasLocation) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = locText,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
             items(providerList) { (key, title) ->
                 val isSelected = selectedProvider == key
                 FilterChip(
@@ -521,29 +587,29 @@ fun DiscoverTab(
         val categories = listOf(
             "Más Votadas" to { viewModel.loadRadioBrowserTopVoted() },
             "Más Escuchadas" to { viewModel.loadRadioBrowserTopClicked() },
-            "Por Ubicación" to { viewModel.fetchRadioBrowserByDeviceLocation() },
             "Pop / Rock" to { viewModel.fetchRadioBrowserByTag("pop") },
             "Noticias" to { viewModel.fetchRadioBrowserByTag("news") },
+            "Reggaeton / Urbana" to { viewModel.fetchRadioBrowserByTag("reggaeton") },
             "Salsa" to { viewModel.fetchRadioBrowserByTag("salsa") },
             "Cumbia" to { viewModel.fetchRadioBrowserByTag("cumbia") },
-            "Deportes" to { viewModel.fetchRadioBrowserByTag("sports") },
+            "Bachata" to { viewModel.fetchRadioBrowserByTag("bachata") },
+            "Merengue" to { viewModel.fetchRadioBrowserByTag("merengue") },
+            "Vallenato" to { viewModel.fetchRadioBrowserByTag("vallenato") },
+            "Ranchera / Mariachi" to { viewModel.fetchRadioBrowserByTag("ranchera") },
+            "Folk" to { viewModel.fetchRadioBrowserByTag("folk") },
+            "Baladas / Romántica" to { viewModel.fetchRadioBrowserByTag("romantic") },
+            "Electrónica" to { viewModel.fetchRadioBrowserByTag("dance") },
+            "Reggae" to { viewModel.fetchRadioBrowserByTag("reggae") },
+            "Hip Hop / Rap" to { viewModel.fetchRadioBrowserByTag("hiphop") },
+            "Clásica" to { viewModel.fetchRadioBrowserByTag("classical") },
             "Jazz" to { viewModel.fetchRadioBrowserByTag("jazz") },
+            "Deportes" to { viewModel.fetchRadioBrowserByTag("sports") },
+            "Cristiana / Religiosa" to { viewModel.fetchRadioBrowserByTag("christian") },
             "Español" to { viewModel.fetchRadioBrowserByLanguage("spanish") },
             "Inglés" to { viewModel.fetchRadioBrowserByLanguage("english") },
             "Portugués" to { viewModel.fetchRadioBrowserByLanguage("portuguese") },
             "Francés" to { viewModel.fetchRadioBrowserByLanguage("french") },
-            "Alemán" to { viewModel.fetchRadioBrowserByLanguage("german") },
-            "Perú" to { viewModel.fetchRadioBrowserByCountry("Peru") },
-            "México" to { viewModel.fetchRadioBrowserByCountry("Mexico") },
-            "España" to { viewModel.fetchRadioBrowserByCountry("Spain") },
-            "EE.UU." to { viewModel.fetchRadioBrowserByCountry("United States") },
-            "Argentina" to { viewModel.fetchRadioBrowserByCountry("Argentina") },
-            "Chile" to { viewModel.fetchRadioBrowserByCountry("Chile") },
-            "Colombia" to { viewModel.fetchRadioBrowserByCountry("Colombia") },
-            "California" to { viewModel.fetchRadioBrowserByState("California") },
-            "Jalisco" to { viewModel.fetchRadioBrowserByState("Jalisco") },
-            "Baviera" to { viewModel.fetchRadioBrowserByState("Bavaria") },
-            "Antioquia" to { viewModel.fetchRadioBrowserByState("Antioquia") }
+            "Alemán" to { viewModel.fetchRadioBrowserByLanguage("german") }
         )
 
         LazyRow(
@@ -886,4 +952,330 @@ fun SyncTab(bottomBarOffsetHeightPx: Float) {
             }
         }
     }
+}
+
+@Composable
+fun LocationSelectorDialog(
+    currentLocation: String?,
+    onDismiss: () -> Unit,
+    onSelectLocation: (countryName: String, countryCode: String, stateName: String) -> Unit,
+    onResetAutoIp: () -> Unit
+) {
+    var selectedCountry by remember { mutableStateOf<Triple<String, String, String>?>(null) }
+    var selectedRegion by remember { mutableStateOf("") }
+    var customSearch by remember { mutableStateOf("") }
+
+    val countryList = listOf(
+        // Ninguno / Global
+        Triple("🌐 Ninguno (Sin filtro / Global)", "", "NONE"),
+
+        // América Latina & Caribe
+        Triple("🇵🇪 Perú", "Peru", "PE"),
+        Triple("🇲🇽 México", "Mexico", "MX"),
+        Triple("🇨🇴 Colombia", "Colombia", "CO"),
+        Triple("🇦🇷 Argentina", "Argentina", "AR"),
+        Triple("🇪🇸 España", "Spain", "ES"),
+        Triple("🇨🇱 Chile", "Chile", "CL"),
+        Triple("🇪🇨 Ecuador", "Ecuador", "EC"),
+        Triple("🇻🇪 Venezuela", "Venezuela", "VE"),
+        Triple("🇩🇴 Rep. Dominicana", "Dominican Republic", "DO"),
+        Triple("🇧🇴 Bolivia", "Bolivia", "BO"),
+        Triple("🇺🇾 Uruguay", "Uruguay", "UY"),
+        Triple("🇵🇾 Paraguay", "Paraguay", "PY"),
+        Triple("🇵🇷 Puerto Rico", "Puerto Rico", "PR"),
+        Triple("🇨🇷 Costa Rica", "Costa Rica", "CR"),
+        Triple("🇬🇹 Guatemala", "Guatemala", "GT"),
+        Triple("🇭🇳 Honduras", "Honduras", "HN"),
+        Triple("🇸🇻 El Salvador", "El Salvador", "SV"),
+        Triple("🇳🇮 Nicaragua", "Nicaragua", "NI"),
+        Triple("🇵🇦 Panamá", "Panama", "PA"),
+        Triple("🇨🇺 Cuba", "Cuba", "CU"),
+        Triple("🇭🇹 Haití", "Haiti", "HT"),
+        Triple("🇯🇲 Jamaica", "Jamaica", "JM"),
+        Triple("🇹🇹 Trinidad y Tobago", "Trinidad and Tobago", "TT"),
+
+        // Norteamérica
+        Triple("🇺🇸 EE.UU. (United States)", "United States", "US"),
+        Triple("🇨🇦 Canadá", "Canada", "CA"),
+
+        // Europa
+        Triple("🇬🇧 Reino Unido (UK)", "United Kingdom", "GB"),
+        Triple("🇫🇷 Francia", "France", "FR"),
+        Triple("🇩🇪 Alemania", "Germany", "DE"),
+        Triple("🇮🇹 Italia", "Italy", "IT"),
+        Triple("🇵🇹 Portugal", "Portugal", "PT"),
+        Triple("🇳🇱 Países Bajos", "Netherlands", "NL"),
+        Triple("🇧🇪 Bélgica", "Belgium", "BE"),
+        Triple("🇨🇭 Suiza", "Switzerland", "CH"),
+        Triple("🇦🇹 Austria", "Austria", "AT"),
+        Triple("🇸🇪 Suecia", "Sweden", "SE"),
+        Triple("🇳🇴 Noruega", "Norway", "NO"),
+        Triple("🇩🇰 Dinamarca", "Denmark", "DK"),
+        Triple("🇫🇮 Finlandia", "Finland", "FI"),
+        Triple("🇵🇱 Polonia", "Poland", "PL"),
+        Triple("🇺🇦 Ucrania", "Ukraine", "UA"),
+        Triple("🇷🇺 Rusia", "Russia", "RU"),
+        Triple("🇷🇴 Rumanía", "Romania", "RO"),
+        Triple("🇬🇷 Grecia", "Greece", "GR"),
+        Triple("🇨🇿 Rep. Checa", "Czech Republic", "CZ"),
+        Triple("🇭🇺 Hungría", "Hungary", "HU"),
+        Triple("🇮🇪 Irlanda", "Ireland", "IE"),
+        Triple("🇭🇷 Croacia", "Croatia", "HR"),
+        Triple("🇸🇷 Serbia", "Serbia", "RS"),
+        Triple("🇹🇷 Turquía", "Turkey", "TR"),
+        Triple("🇧🇬 Bulgaria", "Bulgaria", "BG"),
+        Triple("🇸🇰 Eslovaquia", "Slovakia", "SK"),
+        Triple("🇸🇮 Eslovenia", "Slovenia", "SI"),
+
+        // Asia & Oriente Medio
+        Triple("🇯🇵 Japón", "Japan", "JP"),
+        Triple("🇰🇷 Corea del Sur", "South Korea", "KR"),
+        Triple("🇨🇳 China", "China", "CN"),
+        Triple("🇹🇼 Taiwán", "Taiwan", "TW"),
+        Triple("🇮🇳 India", "India", "IN"),
+        Triple("🇮🇩 Indonesia", "Indonesia", "ID"),
+        Triple("🇵🇭 Filipinas", "Philippines", "PH"),
+        Triple("🇻🇳 Vietnam", "Vietnam", "VN"),
+        Triple("🇹🇭 Tailandia", "Thailand", "TH"),
+        Triple("🇲🇾 Malasia", "Malaysia", "MY"),
+        Triple("🇸🇬 Singapur", "Singapore", "SG"),
+        Triple("🇮🇱 Israel", "Israel", "IL"),
+        Triple("🇦🇪 Emiratos Árabes", "United Arab Emirates", "AE"),
+        Triple("🇸🇦 Arabia Saudita", "Saudi Arabia", "SA"),
+        Triple("🇵🇰 Pakistán", "Pakistan", "PK"),
+        Triple("🇧🇩 Bangladés", "Bangladesh", "BD"),
+
+        // África
+        Triple("🇪🇬 Egipto", "Egypt", "EG"),
+        Triple("🇲🇦 Marruecos", "Morocco", "MA"),
+        Triple("🇿🇦 Sudáfrica", "South Africa", "ZA"),
+        Triple("🇳🇬 Nigeria", "Nigeria", "NG"),
+        Triple("🇰🇪 Kenia", "Kenya", "KE"),
+        Triple("🇩🇿 Argelia", "Algeria", "DZ"),
+        Triple("🇹🇳 Túnez", "Tunisia", "TN"),
+        Triple("🇸🇳 Senegal", "Senegal", "SN"),
+
+        // Oceanía
+        Triple("🇦🇺 Australia", "Australia", "AU"),
+        Triple("🇳🇿 Nueva Zelanda", "New Zealand", "NZ")
+    )
+
+    val regionMap = mapOf(
+        "PE" to listOf("Lima", "Arequipa", "Cusco", "La Libertad", "Piura", "Junín", "Puno", "Lambayeque", "Ica", "Ancash", "Tacna", "Loreto", "Cajamarca", "San Martín", "Ayacucho"),
+        "MX" to listOf("CDMX", "Jalisco", "Nuevo León", "Puebla", "Guanajuato", "Veracruz", "Yucatán", "Chihuahua", "Baja California", "Edomex", "Querétaro"),
+        "CO" to listOf("Bogotá", "Antioquia", "Valle del Cauca", "Atlántico", "Santander", "Cundinamarca", "Bolívar", "Risaralda", "Caldas", "Nariño"),
+        "AR" to listOf("Buenos Aires", "Córdoba", "Santa Fe", "Mendoza", "Tucumán", "Salta", "Entre Ríos", "Misiones", "Chaco", "Neuquén"),
+        "ES" to listOf("Madrid", "Cataluña", "Andalucía", "Comunidad Valenciana", "Galicia", "País Vasco", "Canarias", "Castilla y León", "Murcia"),
+        "CL" to listOf("Santiago / Región Metropolitana", "Valparaíso", "Bío-Bío", "Antofagasta", "Araucanía", "Coquimbo", "Los Lagos"),
+        "EC" to listOf("Pichincha (Quito)", "Guayas (Guayaquil)", "Azuay (Cuenca)", "Manabí", "Tungurahua", "Loja", "El Oro"),
+        "VE" to listOf("Caracas / Distrito Capital", "Zulia", "Carabobo", "Lara", "Aragua", "Anzoátegui", "Bolívar"),
+        "US" to listOf("California", "Florida", "Texas", "New York", "Illinois", "Georgia", "New Jersey", "North Carolina"),
+        "BR" to listOf("São Paulo", "Rio de Janeiro", "Minas Gerais", "Bahia", "Paraná", "Rio Grande do Sul"),
+        "DO" to listOf("Santo Domingo", "Santiago", "La Altagracia", "Puerto Plata"),
+        "BO" to listOf("La Paz", "Santa Cruz", "Cochabamba", "Tarija", "Potosí", "Chuquisaca"),
+        "UY" to listOf("Montevideo", "Maldonado", "Canelones", "Colonia"),
+        "PR" to listOf("San Juan", "Ponce", "Mayagüez", "Bayamón"),
+        "CR" to listOf("San José", "Alajuela", "Cartago", "Heredia", "Puntarenas", "Guanacaste"),
+        "GT" to listOf("Guatemala", "Quetzaltenango", "Escuintla", "Alta Verapaz"),
+        "JP" to listOf("Tokyo", "Osaka", "Kanagawa", "Aichi", "Hokkaido", "Kyoto", "Fukuoka")
+    )
+
+    val filteredCountries = if (customSearch.isBlank()) countryList else countryList.filter {
+        it.first.contains(customSearch, ignoreCase = true) ||
+        it.second.contains(customSearch, ignoreCase = true)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.Public, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Text("Elegir País y Región", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 450.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (selectedCountry != null) {
+                    val country = selectedCountry!!
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text("País seleccionado:", fontSize = 10.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+                                Text(country.first, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            }
+                            TextButton(onClick = {
+                                selectedCountry = null
+                                selectedRegion = ""
+                            }) {
+                                Text("Cambiar País", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    Text("Región / Departamento (Opcional):", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+
+                    val regions = regionMap[country.third] ?: emptyList()
+                    if (regions.isNotEmpty()) {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            item {
+                                FilterChip(
+                                    selected = selectedRegion.isBlank(),
+                                    onClick = { selectedRegion = "" },
+                                    label = { Text("Todas") }
+                                )
+                            }
+                            items(regions) { r ->
+                                FilterChip(
+                                    selected = selectedRegion.equals(r, ignoreCase = true),
+                                    onClick = { selectedRegion = if (selectedRegion.equals(r, ignoreCase = true)) "" else r },
+                                    label = { Text(r) }
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = selectedRegion,
+                        onValueChange = { selectedRegion = it },
+                        placeholder = { Text("O escribe cualquier región/ciudad...", fontSize = 12.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    Button(
+                        onClick = {
+                            onSelectLocation(country.second, country.third, selectedRegion.trim())
+                            onDismiss()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            if (selectedRegion.isNotBlank()) "Ver radios en ${selectedRegion.trim()}, ${country.first}"
+                            else "Ver radios en ${country.first}"
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "Selecciona un país para ver sus regiones y emisoras locales:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = customSearch,
+                        onValueChange = { customSearch = it },
+                        placeholder = { Text("Buscar país o región (ej. Perú, Arequipa)...", fontSize = 13.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    LazyColumn(
+                        modifier = Modifier.weight(1f, fill = false),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(filteredCountries) { triple ->
+                            Surface(
+                                onClick = {
+                                    if (triple.third == "NONE") {
+                                        onSelectLocation("", "", "")
+                                        onDismiss()
+                                    } else {
+                                        selectedCountry = triple
+                                    }
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = triple.first,
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                                    )
+                                    Text(
+                                        text = if (triple.third == "NONE") "ALL" else triple.third,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+
+                        if (customSearch.isNotBlank() && filteredCountries.isEmpty()) {
+                            item {
+                                Button(
+                                    onClick = {
+                                        onSelectLocation(customSearch.trim(), "", customSearch.trim())
+                                        onDismiss()
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Buscar radios en '$customSearch'")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            onSelectLocation("", "", "")
+                            onDismiss()
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Ninguno (Sin filtro)", fontSize = 11.sp, maxLines = 1)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            onResetAutoIp()
+                            onDismiss()
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Auto por IP", fontSize = 11.sp, maxLines = 1)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cerrar")
+            }
+        }
+    )
 }

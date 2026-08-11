@@ -21,6 +21,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -75,15 +76,18 @@ fun RadioApp(
         context.startActivity(android.content.Intent.createChooser(intent, "Compartir Radio"))
     }
 
+    val uriHandler = LocalUriHandler.current
+    var showAddOptionsDialog by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
     var showSleepTimerMenu by remember { mutableStateOf(false) }
     var showFullPlayer by remember { mutableStateOf(false) }
     var activeTab by remember { mutableStateOf(0) }
 
     // Handle system back button to return to first tab or close modals
-    BackHandler(enabled = activeTab != 0 || showAddDialog || showSleepTimerMenu || showFullPlayer) {
+    BackHandler(enabled = activeTab != 0 || showAddOptionsDialog || showAddDialog || showSleepTimerMenu || showFullPlayer) {
         when {
             showFullPlayer -> showFullPlayer = false
+            showAddOptionsDialog -> showAddOptionsDialog = false
             showAddDialog -> showAddDialog = false
             showSleepTimerMenu -> showSleepTimerMenu = false
             activeTab != 0 -> activeTab = 0
@@ -221,7 +225,7 @@ fun RadioApp(
             floatingActionButton = {
                 if (!isTablet) {
                     FloatingActionButton(
-                        onClick = { showAddDialog = true },
+                        onClick = { showAddOptionsDialog = true },
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                         shape = RoundedCornerShape(16.dp),
@@ -306,7 +310,7 @@ fun RadioApp(
                             header = {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 FloatingActionButton(
-                                    onClick = { showAddDialog = true },
+                                    onClick = { showAddOptionsDialog = true },
                                     containerColor = MaterialTheme.colorScheme.primary,
                                     contentColor = MaterialTheme.colorScheme.onPrimary,
                                     shape = RoundedCornerShape(16.dp),
@@ -481,11 +485,19 @@ fun RadioApp(
                 }
             }
 
+            if (showAddOptionsDialog) {
+                AddStationOptionsDialog(
+                    onDismiss = { showAddOptionsDialog = false },
+                    onAddLocal = { showAddDialog = true },
+                    onOpenRadioBrowserAdd = { uriHandler.openUri("https://www.radio-browser.info/add") }
+                )
+            }
+
             if (showAddDialog) {
                 AddStationDialog(
                     onDismiss = { showAddDialog = false },
-                    onAddStation = { name, url, genre, country, region, province, district ->
-                        viewModel.addCustomStation(name, url, genre, country, region, province, district)
+                    onAddStation = { name, url, faviconUrl, genre, country, region, province, district ->
+                        viewModel.addCustomStation(name, url, faviconUrl, genre, country, region, province, district)
                         showAddDialog = false
                     }
                 )
