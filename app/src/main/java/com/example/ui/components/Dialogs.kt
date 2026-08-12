@@ -52,8 +52,54 @@ private fun formatTimeLeft(seconds: Int?): String {
     return String.format("%02d:%02d", mins, secs)
 }
 
+@Deprecated("Use FullPlayerScreen instead to avoid Dialog subwindow edge-to-edge limitations on custom vendor Android skins.")
 @Composable
 fun FullPlayerDialog(
+    currentStation: RadioStation,
+    currentTrackTitle: String?,
+    currentTrackArtist: String?,
+    currentTrackArtworkUrl: String?,
+    playbackStatus: PlaybackStatus,
+    volume: Float,
+    sleepSecondsLeft: Int?,
+    networkStatus: ConnectivityObserver.Status,
+    isFavorite: Boolean,
+    onToggleFavorite: (RadioStation) -> Unit,
+    onTogglePlay: () -> Unit,
+    onStopPlayback: () -> Unit,
+    onPreviousStation: () -> Unit,
+    onNextStation: () -> Unit,
+    onRandomStation: () -> Unit,
+    onVolumeChange: (Float) -> Unit,
+    onOpenSleepTimer: () -> Unit,
+    onShare: (RadioStation) -> Unit,
+    onDismiss: () -> Unit
+) {
+    FullPlayerScreen(
+        currentStation = currentStation,
+        currentTrackTitle = currentTrackTitle,
+        currentTrackArtist = currentTrackArtist,
+        currentTrackArtworkUrl = currentTrackArtworkUrl,
+        playbackStatus = playbackStatus,
+        volume = volume,
+        sleepSecondsLeft = sleepSecondsLeft,
+        networkStatus = networkStatus,
+        isFavorite = isFavorite,
+        onToggleFavorite = onToggleFavorite,
+        onTogglePlay = onTogglePlay,
+        onStopPlayback = onStopPlayback,
+        onPreviousStation = onPreviousStation,
+        onNextStation = onNextStation,
+        onRandomStation = onRandomStation,
+        onVolumeChange = onVolumeChange,
+        onOpenSleepTimer = onOpenSleepTimer,
+        onShare = onShare,
+        onDismiss = onDismiss
+    )
+}
+
+@Composable
+fun FullPlayerScreen(
     currentStation: RadioStation,
     currentTrackTitle: String?,
     currentTrackArtist: String?,
@@ -77,6 +123,11 @@ fun FullPlayerDialog(
     val isPlaying = playbackStatus == PlaybackStatus.PLAYING
     val iconScale = LocalIconScale.current
 
+    // Handle system back gesture / back button
+    BackHandler(enabled = true) {
+        onDismiss()
+    }
+
     // Disc rotation
     val infiniteTransition = rememberInfiniteTransition(label = "full_disc_rotation")
     val rotationAngle by infiniteTransition.animateFloat(
@@ -90,66 +141,37 @@ fun FullPlayerDialog(
     )
     val animatedAngle = if (isPlaying) rotationAngle else 0f
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false
-        )
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("full_player_surface"),
+        color = MaterialTheme.colorScheme.background
     ) {
-        BackHandler(enabled = true) {
-            onDismiss()
-        }
-
-        val view = LocalView.current
-        SideEffect {
-            val window = (view.parent as? DialogWindowProvider)?.window
-            window?.let { w ->
-                w.setLayout(
-                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                    android.view.ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                w.statusBarColor = android.graphics.Color.TRANSPARENT
-                w.navigationBarColor = android.graphics.Color.TRANSPARENT
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                    w.isStatusBarContrastEnforced = false
-                    w.isNavigationBarContrastEnforced = false
-                }
-                WindowCompat.setDecorFitsSystemWindows(w, false)
-            }
-        }
-
-        Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .testTag("full_player_surface"),
-            color = MaterialTheme.colorScheme.background
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                // Ambient background gradient
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.85f),
-                                    MaterialTheme.colorScheme.background,
-                                    MaterialTheme.colorScheme.surface
-                                )
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Ambient background gradient extending 100% full screen
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.secondary.copy(alpha = 0.85f),
+                                MaterialTheme.colorScheme.background,
+                                MaterialTheme.colorScheme.surface
                             )
                         )
-                )
+                    )
+            )
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .systemBarsPadding()
-                        .padding(horizontal = 24.dp, vertical = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .systemBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
                     // Top Bar
                     Row(
                         modifier = Modifier
@@ -472,7 +494,6 @@ fun FullPlayerDialog(
             }
         }
     }
-}
 
 @Composable
 fun AddStationOptionsDialog(

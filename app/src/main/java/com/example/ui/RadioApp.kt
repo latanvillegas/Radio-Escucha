@@ -1,6 +1,13 @@
 package com.example.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -518,28 +525,40 @@ fun RadioApp(
             }
 
             val activeStation = currentStation
-            if (showFullPlayer && activeStation != null) {
-                FullPlayerDialog(
-                    currentStation = activeStation,
-                    currentTrackTitle = currentTrackTitle,
-                    currentTrackArtist = currentTrackArtist,
-                    currentTrackArtworkUrl = currentTrackArtworkUrl,
-                    playbackStatus = playbackStatus,
-                    volume = volume,
-                    sleepSecondsLeft = sleepSecondsLeft,
-                    networkStatus = networkStatus,
-                    isFavorite = activeStation.isFavorite,
-                    onToggleFavorite = { viewModel.toggleFavorite(it) },
-                    onTogglePlay = { viewModel.togglePlayPause() },
-                    onStopPlayback = { viewModel.stopPlayback() },
-                    onPreviousStation = { viewModel.playPreviousStation() },
-                    onNextStation = { viewModel.playNextStation() },
-                    onRandomStation = { viewModel.playRandomStation() },
-                    onVolumeChange = { viewModel.setVolume(it) },
-                    onOpenSleepTimer = { showSleepTimerMenu = true },
-                    onShare = shareStation,
-                    onDismiss = { showFullPlayer = false }
-                )
+            AnimatedVisibility(
+                visible = showFullPlayer && activeStation != null,
+                enter = slideInVertically(
+                    initialOffsetY = { it },
+                    animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
+                ) + fadeIn(animationSpec = tween(durationMillis = 350)),
+                exit = slideOutVertically(
+                    targetOffsetY = { it },
+                    animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+                ) + fadeOut(animationSpec = tween(durationMillis = 300))
+            ) {
+                if (activeStation != null) {
+                    FullPlayerScreen(
+                        currentStation = activeStation,
+                        currentTrackTitle = currentTrackTitle,
+                        currentTrackArtist = currentTrackArtist,
+                        currentTrackArtworkUrl = currentTrackArtworkUrl,
+                        playbackStatus = playbackStatus,
+                        volume = volume,
+                        sleepSecondsLeft = sleepSecondsLeft,
+                        networkStatus = networkStatus,
+                        isFavorite = activeStation.isFavorite,
+                        onToggleFavorite = { viewModel.toggleFavorite(it) },
+                        onTogglePlay = { viewModel.togglePlayPause() },
+                        onStopPlayback = { viewModel.stopPlayback() },
+                        onPreviousStation = { viewModel.playPreviousStation() },
+                        onNextStation = { viewModel.playNextStation() },
+                        onRandomStation = { viewModel.playRandomStation() },
+                        onVolumeChange = { viewModel.setVolume(it) },
+                        onOpenSleepTimer = { showSleepTimerMenu = true },
+                        onShare = shareStation,
+                        onDismiss = { showFullPlayer = false }
+                    )
+                }
             }
         }
     }
