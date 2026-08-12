@@ -105,8 +105,16 @@ fun FullPlayerDialog(
         SideEffect {
             val window = (view.parent as? DialogWindowProvider)?.window
             window?.let { w ->
+                w.setLayout(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                )
                 w.statusBarColor = android.graphics.Color.TRANSPARENT
                 w.navigationBarColor = android.graphics.Color.TRANSPARENT
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    w.isStatusBarContrastEnforced = false
+                    w.isNavigationBarContrastEnforced = false
+                }
                 WindowCompat.setDecorFitsSystemWindows(w, false)
             }
         }

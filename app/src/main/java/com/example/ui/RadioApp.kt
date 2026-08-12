@@ -249,7 +249,6 @@ fun RadioApp(
                         modifier = Modifier
                             .height(bottomBarHeight)
                             .offset { IntOffset(0, bottomBarOffsetHeightPx.roundToInt()) }
-                            .windowInsetsPadding(WindowInsets.navigationBars)
                     ) {
                         val navItems = listOf(
                             Triple(Icons.Filled.Home, Icons.Outlined.Home, "Inicio"),

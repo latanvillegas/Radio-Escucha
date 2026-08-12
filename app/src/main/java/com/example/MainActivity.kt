@@ -31,7 +31,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         
         // Support edge-to-edge status & nav bar coloring natively
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        )
         
         // Request Notification permission on Android 13+ (API 33) to prevent Foreground Service crashes
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
