@@ -20,6 +20,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -527,6 +528,9 @@ fun RadioApp(
             val activeStation = currentStation
             AnimatedVisibility(
                 visible = showFullPlayer && activeStation != null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(10f),
                 enter = slideInVertically(
                     initialOffsetY = { it },
                     animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)

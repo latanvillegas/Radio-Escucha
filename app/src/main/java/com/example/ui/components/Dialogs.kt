@@ -166,17 +166,17 @@ fun FullPlayerScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
                     .systemBarsPadding()
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
+                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
             ) {
                     // Top Bar
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 8.dp),
+                            .padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -184,7 +184,7 @@ fun FullPlayerScreen(
                             Icon(
                                 Icons.Default.KeyboardArrowDown,
                                 contentDescription = "Minimizar",
-                                modifier = Modifier.size(32.dp),
+                                modifier = Modifier.size(36.dp),
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
@@ -192,7 +192,7 @@ fun FullPlayerScreen(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 "REPRODUCIENDO AHORA",
-                                style = MaterialTheme.typography.labelSmall.copy(
+                                style = MaterialTheme.typography.labelMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 2.sp,
                                     color = MaterialTheme.colorScheme.primary
@@ -206,9 +206,9 @@ fun FullPlayerScreen(
                             }
                             Text(
                                 badgeText,
-                                style = MaterialTheme.typography.labelMedium.copy(
+                                style = MaterialTheme.typography.titleSmall.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isPlaying) Color.Green else MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = if (isPlaying) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             )
                         }
@@ -234,10 +234,10 @@ fun FullPlayerScreen(
                     // Main Album / Station Artwork Hero
                     Box(
                         modifier = Modifier
-                            .size(240.dp)
-                            .clip(RoundedCornerShape(32.dp))
+                            .size(280.dp)
+                            .clip(RoundedCornerShape(28.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .shadow(16.dp, RoundedCornerShape(32.dp)),
+                            .shadow(16.dp, RoundedCornerShape(28.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         if (!currentTrackArtworkUrl.isNullOrBlank()) {
@@ -297,17 +297,21 @@ fun FullPlayerScreen(
                     // Track & Station Metadata
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp)
                     ) {
                         val hasTrackDetails = !currentTrackTitle.isNullOrBlank() || !currentTrackArtist.isNullOrBlank()
                         if (hasTrackDetails) {
                             Text(
                                 text = currentTrackTitle ?: currentStation.name,
-                                style = MaterialTheme.typography.headlineMedium.copy(
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontSize = 22.sp,
+                                    lineHeight = 28.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 ),
-                                maxLines = 1,
+                                maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                                 textAlign = TextAlign.Center
                             )
@@ -315,26 +319,10 @@ fun FullPlayerScreen(
                             Text(
                                 text = (currentTrackArtist ?: currentStation.genre).uppercase(),
                                 style = MaterialTheme.typography.titleMedium.copy(
+                                    fontSize = 15.sp,
                                     color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.SemiBold,
-                                    letterSpacing = 1.sp
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "📻 ${currentStation.name}",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            )
-                        } else {
-                            Text(
-                                text = currentStation.name,
-                                style = MaterialTheme.typography.headlineMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    letterSpacing = 1.sp
                                 ),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -342,12 +330,40 @@ fun FullPlayerScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
+                                text = "📻 ${currentStation.name}",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center
+                            )
+                        } else {
+                            Text(
+                                text = currentStation.name,
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontSize = 24.sp,
+                                    lineHeight = 30.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
                                 text = currentStation.genre.uppercase(),
                                 style = MaterialTheme.typography.titleMedium.copy(
+                                    fontSize = 16.sp,
                                     color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.SemiBold,
-                                    letterSpacing = 1.sp
-                                )
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.2.sp
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center
                             )
                         }
 
@@ -361,9 +377,13 @@ fun FullPlayerScreen(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = geoParts.joinToString(" • "),
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                                )
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
@@ -373,9 +393,9 @@ fun FullPlayerScreen(
                         isPlaying = isPlaying,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(50.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                            .height(52.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
                     )
 
                     // Large Playback Controls Cluster
