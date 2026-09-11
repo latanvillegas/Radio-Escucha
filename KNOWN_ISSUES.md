@@ -1,10 +1,10 @@
 # Errores Conocidos y Soluciones del Proyecto OpenRadio
 
-## [2026-09-11] Error: Fallo de compilación en DatabaseTest por discrepancia de constructor
-- **Síntoma**: `e: .../DatabaseTest.kt:27:32 No value passed for parameter 'playbackHistoryDao'`.
-- **Causa raíz**: Se había extendido `RadioRepository` para aceptar `playbackHistoryDao` en turnos anteriores, pero no se había actualizado el test unitario en `DatabaseTest.kt`.
-- **Solución aplicada**: Se añadió `db.playbackHistoryDao()` en la instanciación de `RadioRepository` en `DatabaseTest.kt`.
-- **Prevención**: Ejecutar siempre el task de unit tests `:app:testDebugUnitTest` como parte del ciclo de verificación.
+## [2026-09-11] Error: Fallo en tests de Robolectric en CI (UnsupportedOperationException en DefaultSdkProvider)
+- **Síntoma**: En GitHub Actions `:app:testDebugUnitTest` fallaba con `ExampleRobolectricTest > classMethod FAILED: java.lang.UnsupportedOperationException at DefaultSdkProvider.java:170` y `GreetingScreenshotTest > classMethod FAILED`.
+- **Causa raíz**: Ambos archivos de test tenían configurado `@Config(sdk = [36])`. La versión de Robolectric en el proyecto no soporta Android API 36, arrojando excepción al no encontrar el runtime del SDK.
+- **Solución aplicada**: Se ajustó la configuración a `@Config(sdk = [34])` en `ExampleRobolectricTest.kt` y `GreetingScreenshotTest.kt`.
+- **Prevención**: Configurar siempre niveles de SDK estables y probados en anotaciones `@Config` de Robolectric (máximo API 34 o 35).
 
 ## [2026-09-11] Error: Incompatibilidad de actualización de APK ("No son compatibles")
 - **Síntoma**: Al descargar un APK nuevo e intentar actualizarlo sobre la versión ya instalada, Android muestra un error de incompatibilidad o conflicto de paquetes, obligando a desinstalar la versión anterior.
