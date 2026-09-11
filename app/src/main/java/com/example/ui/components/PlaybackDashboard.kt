@@ -2,6 +2,7 @@ package com.example.ui.components
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -403,6 +404,7 @@ fun PlaybackDashboard(
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = currentTrackTitle ?: currentStation.name,
+                                modifier = Modifier.basicMarquee(),
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
@@ -413,6 +415,7 @@ fun PlaybackDashboard(
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = "📻 ${currentStation.name}",
+                                modifier = Modifier.basicMarquee(),
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 ),
@@ -431,6 +434,7 @@ fun PlaybackDashboard(
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = currentStation.name,
+                                modifier = Modifier.basicMarquee(),
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White

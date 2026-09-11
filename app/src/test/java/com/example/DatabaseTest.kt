@@ -24,7 +24,7 @@ class DatabaseTest {
     fun createDb() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(context, RadioDatabase::class.java).allowMainThreadQueries().build()
-        repo = RadioRepository(db.radioDao())
+        repo = RadioRepository(db.radioDao(), db.playbackHistoryDao())
     }
 
     @After

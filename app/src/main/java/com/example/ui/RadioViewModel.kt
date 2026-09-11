@@ -263,9 +263,7 @@ class RadioViewModel(
                             updateTrackMetadata(mediaMetadata)
                         }
                         override fun onPlayerError(error: PlaybackException) {
-                            _playbackStatus.value = PlaybackStatus.ERROR
-                            val stationName = _currentStation.value?.name ?: "esta emisora"
-                            _errorMessage.value = "La emisora '$stationName' no responde o el servidor está caído."
+                            handlePlaybackError(error)
                         }
                     })
                     mediaController?.volume = _volume.value
@@ -275,6 +273,31 @@ class RadioViewModel(
             },
             ContextCompat.getMainExecutor(getApplication())
         )
+    }
+
+    private var retryAttemptJob: Job? = null
+
+    private fun handlePlaybackError(error: PlaybackException) {
+        val current = _currentStation.value
+        val isNetworkIssue = error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+                error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+                error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
+
+        if (current != null && isNetworkIssue && networkStatus.value == ConnectivityObserver.Status.Available) {
+            _playbackStatus.value = PlaybackStatus.BUFFERING
+            _errorMessage.value = "Reconectando con ${current.name}..."
+            retryAttemptJob?.cancel()
+            retryAttemptJob = viewModelScope.launch {
+                delay(2500)
+                if (_currentStation.value?.id == current.id && _playbackStatus.value != PlaybackStatus.PLAYING) {
+                    playStation(current)
+                }
+            }
+        } else {
+            _playbackStatus.value = PlaybackStatus.ERROR
+            val stationName = current?.name ?: "esta emisora"
+            _errorMessage.value = "La emisora '$stationName' no responde o el servidor está caído."
+        }
     }
 
     private fun updateStatus() {

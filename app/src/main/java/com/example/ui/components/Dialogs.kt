@@ -3,6 +3,7 @@ package com.example.ui.components
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -147,7 +148,11 @@ fun FullPlayerScreen(
             .testTag("full_player_surface"),
         color = MaterialTheme.colorScheme.background
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val isLandscape = maxWidth > maxHeight && maxWidth > 560.dp
+            val screenHeight = maxHeight
+            val screenWidth = maxWidth
+
             // Ambient background gradient extending 100% full screen
             Box(
                 modifier = Modifier
@@ -163,232 +168,125 @@ fun FullPlayerScreen(
                     )
             )
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .systemBarsPadding()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
-            ) {
-                    // Top Bar
+            if (isLandscape) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .systemBarsPadding()
+                        .padding(horizontal = 24.dp, vertical = 8.dp)
+                ) {
+                    FullPlayerTopBar(
+                        playbackStatus = playbackStatus,
+                        isPlaying = isPlaying,
+                        isFavorite = isFavorite,
+                        currentStation = currentStation,
+                        onDismiss = onDismiss,
+                        onToggleFavorite = onToggleFavorite,
+                        onShare = onShare
+                    )
+
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                            .fillMaxSize()
+                            .weight(1f)
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(28.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                Icons.Default.KeyboardArrowDown,
-                                contentDescription = "Minimizar",
-                                modifier = Modifier.size(36.dp),
-                                tint = MaterialTheme.colorScheme.onSurface
+                        // Left Column: Artwork + Metadata
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .verticalScroll(rememberScrollState()),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            val artworkSize = (screenHeight * 0.42f).coerceIn(110.dp, 210.dp)
+                            FullPlayerArtwork(
+                                currentTrackArtworkUrl = currentTrackArtworkUrl,
+                                currentStation = currentStation,
+                                animatedAngle = animatedAngle,
+                                modifier = Modifier.size(artworkSize)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            FullPlayerMetadata(
+                                currentStation = currentStation,
+                                currentTrackTitle = currentTrackTitle,
+                                currentTrackArtist = currentTrackArtist
                             )
                         }
 
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                "REPRODUCIENDO AHORA",
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 2.sp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            )
-                            val badgeText = when (playbackStatus) {
-                                PlaybackStatus.ERROR -> "ERROR ⚠️"
-                                PlaybackStatus.BUFFERING -> "CARGANDO..."
-                                PlaybackStatus.PLAYING -> "AL AIRE 🔴"
-                                else -> "EN PAUSA"
-                            }
-                            Text(
-                                badgeText,
-                                style = MaterialTheme.typography.titleSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isPlaying) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            )
-                        }
-
-                        Row {
-                            IconButton(onClick = { onToggleFavorite(currentStation) }) {
-                                Icon(
-                                    if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                                    contentDescription = "Favorito",
-                                    tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            IconButton(onClick = { onShare(currentStation) }) {
-                                Icon(
-                                    Icons.Default.Share,
-                                    contentDescription = "Compartir",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-
-                    // Main Album / Station Artwork Hero
-                    Box(
-                        modifier = Modifier
-                            .size(280.dp)
-                            .clip(RoundedCornerShape(28.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .shadow(16.dp, RoundedCornerShape(28.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (!currentTrackArtworkUrl.isNullOrBlank()) {
-                            AsyncImage(
-                                model = currentTrackArtworkUrl,
-                                contentDescription = "Carátula",
+                        // Right Column: Visualizer + Controls + Volume
+                        Column(
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .fillMaxHeight()
+                                .verticalScroll(rememberScrollState()),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
+                        ) {
+                            AudioVisualizer(
+                                isPlaying = isPlaying,
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(RoundedCornerShape(32.dp)),
-                                contentScale = ContentScale.Crop
+                                    .fillMaxWidth()
+                                    .height(44.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
                             )
-                        } else {
-                            val logoUrl = remember(currentStation.name, currentStation.url, currentStation.faviconUrl) {
-                                StationLogoResolver.getLogoForStation(currentStation.name, currentStation.url, currentStation.faviconUrl)
-                            }
-                            // Large Rotating Vinyl / Disc Logo using graphicsLayer for hardware GPU rotation
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .graphicsLayer { rotationZ = animatedAngle }
-                                    .clip(CircleShape)
-                                    .background(
-                                        brush = Brush.sweepGradient(
-                                            colors = listOf(
-                                                MaterialTheme.colorScheme.primary,
-                                                MaterialTheme.colorScheme.onPrimary,
-                                                MaterialTheme.colorScheme.primary
-                                            )
-                                        )
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (logoUrl != null) {
-                                    AsyncImage(
-                                        model = logoUrl,
-                                        contentDescription = currentStation.name,
-                                        modifier = Modifier
-                                            .size(100.dp)
-                                            .clip(CircleShape)
-                                            .graphicsLayer { rotationZ = -animatedAngle },
-                                        contentScale = ContentScale.Crop
-                                    )
-                                } else {
-                                    Icon(
-                                        Icons.Default.Radio,
-                                        contentDescription = null,
-                                        modifier = Modifier
-                                            .size(64.dp)
-                                            .graphicsLayer { rotationZ = -animatedAngle },
-                                        tint = MaterialTheme.colorScheme.onPrimary
-                                    )
-                                }
-                            }
-                        }
-                    }
 
-                    // Track & Station Metadata
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp)
-                    ) {
-                        val hasTrackDetails = !currentTrackTitle.isNullOrBlank() || !currentTrackArtist.isNullOrBlank()
-                        if (hasTrackDetails) {
-                            Text(
-                                text = currentTrackTitle ?: currentStation.name,
-                                style = MaterialTheme.typography.titleLarge.copy(
-                                    fontSize = 22.sp,
-                                    lineHeight = 28.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                ),
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center
+                            FullPlayerControls(
+                                isPlaying = isPlaying,
+                                playbackStatus = playbackStatus,
+                                sleepSecondsLeft = sleepSecondsLeft,
+                                onRandomStation = onRandomStation,
+                                onPreviousStation = onPreviousStation,
+                                onTogglePlay = onTogglePlay,
+                                onNextStation = onNextStation,
+                                onOpenSleepTimer = onOpenSleepTimer
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = (currentTrackArtist ?: currentStation.genre).uppercase(),
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontSize = 15.sp,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.sp
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "📻 ${currentStation.name}",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 14.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center
-                            )
-                        } else {
-                            Text(
-                                text = currentStation.name,
-                                style = MaterialTheme.typography.titleLarge.copy(
-                                    fontSize = 24.sp,
-                                    lineHeight = 30.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                ),
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = currentStation.genre.uppercase(),
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontSize = 16.sp,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.2.sp
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center
-                            )
-                        }
 
-                        val geoParts = listOfNotNull(
-                            currentStation.country.takeIf { it.isNotEmpty() },
-                            currentStation.region.takeIf { it.isNotEmpty() },
-                            currentStation.province.takeIf { it.isNotEmpty() }
-                        ).filter { it.isNotBlank() }
-
-                        if (geoParts.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = geoParts.joinToString(" • "),
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center
+                            FullPlayerVolumeBar(
+                                volume = volume,
+                                onVolumeChange = onVolumeChange
                             )
                         }
                     }
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .systemBarsPadding()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 24.dp, vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
+                ) {
+                    FullPlayerTopBar(
+                        playbackStatus = playbackStatus,
+                        isPlaying = isPlaying,
+                        isFavorite = isFavorite,
+                        currentStation = currentStation,
+                        onDismiss = onDismiss,
+                        onToggleFavorite = onToggleFavorite,
+                        onShare = onShare
+                    )
 
-                    // Audio Visualizer
+                    val artworkSize = (screenWidth * 0.68f).coerceIn(180.dp, 280.dp)
+                    FullPlayerArtwork(
+                        currentTrackArtworkUrl = currentTrackArtworkUrl,
+                        currentStation = currentStation,
+                        animatedAngle = animatedAngle,
+                        modifier = Modifier.size(artworkSize)
+                    )
+
+                    FullPlayerMetadata(
+                        currentStation = currentStation,
+                        currentTrackTitle = currentTrackTitle,
+                        currentTrackArtist = currentTrackArtist
+                    )
+
                     AudioVisualizer(
                         isPlaying = isPlaying,
                         modifier = Modifier
@@ -398,122 +296,398 @@ fun FullPlayerScreen(
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
                     )
 
-                    // Large Playback Controls Cluster
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = onRandomStation,
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Shuffle,
-                                contentDescription = "Aleatorio",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
+                    FullPlayerControls(
+                        isPlaying = isPlaying,
+                        playbackStatus = playbackStatus,
+                        sleepSecondsLeft = sleepSecondsLeft,
+                        onRandomStation = onRandomStation,
+                        onPreviousStation = onPreviousStation,
+                        onTogglePlay = onTogglePlay,
+                        onNextStation = onNextStation,
+                        onOpenSleepTimer = onOpenSleepTimer
+                    )
 
-                        IconButton(
-                            onClick = onPreviousStation,
-                            modifier = Modifier.size(56.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.SkipPrevious,
-                                contentDescription = "Anterior",
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(36.dp)
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .size(72.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary)
-                                .clickable { onTogglePlay() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (playbackStatus == PlaybackStatus.BUFFERING) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(36.dp),
-                                    strokeWidth = 3.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                            } else {
-                                Icon(
-                                    if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                    contentDescription = if (isPlaying) "Pausar" else "Reproducir",
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(40.dp)
-                                )
-                            }
-                        }
-
-                        IconButton(
-                            onClick = onNextStation,
-                            modifier = Modifier.size(56.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.SkipNext,
-                                contentDescription = "Siguiente",
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(36.dp)
-                            )
-                        }
-
-                        IconButton(
-                            onClick = onOpenSleepTimer,
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Icon(
-                                if (sleepSecondsLeft != null) Icons.Filled.Timer else Icons.Outlined.Timer,
-                                contentDescription = "Temporizador",
-                                tint = if (sleepSecondsLeft != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-
-                    // Volume Slider Bar
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            if (volume > 0.05f) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeMute,
-                            contentDescription = "Volumen",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Slider(
-                            value = volume,
-                            onValueChange = onVolumeChange,
-                            modifier = Modifier.weight(1f),
-                            colors = SliderDefaults.colors(
-                                thumbColor = MaterialTheme.colorScheme.primary,
-                                activeTrackColor = MaterialTheme.colorScheme.primary
-                            )
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "${(volume * 100).roundToInt()}%",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            modifier = Modifier.width(36.dp)
-                        )
-                    }
+                    FullPlayerVolumeBar(
+                        volume = volume,
+                        onVolumeChange = onVolumeChange
+                    )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun FullPlayerTopBar(
+    playbackStatus: PlaybackStatus,
+    isPlaying: Boolean,
+    isFavorite: Boolean,
+    currentStation: RadioStation,
+    onDismiss: () -> Unit,
+    onToggleFavorite: (RadioStation) -> Unit,
+    onShare: (RadioStation) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onDismiss) {
+            Icon(
+                Icons.Default.KeyboardArrowDown,
+                contentDescription = "Minimizar",
+                modifier = Modifier.size(36.dp),
+                tint = MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                "REPRODUCIENDO AHORA",
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            )
+            val badgeText = when (playbackStatus) {
+                PlaybackStatus.ERROR -> "ERROR ⚠️"
+                PlaybackStatus.BUFFERING -> "CARGANDO..."
+                PlaybackStatus.PLAYING -> "AL AIRE 🔴"
+                else -> "EN PAUSA"
+            }
+            Text(
+                badgeText,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = if (isPlaying) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            )
+        }
+
+        Row {
+            IconButton(onClick = { onToggleFavorite(currentStation) }) {
+                Icon(
+                    if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                    contentDescription = "Favorito",
+                    tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            IconButton(onClick = { onShare(currentStation) }) {
+                Icon(
+                    Icons.Default.Share,
+                    contentDescription = "Compartir",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FullPlayerArtwork(
+    currentTrackArtworkUrl: String?,
+    currentStation: RadioStation,
+    animatedAngle: Float,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(28.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .shadow(16.dp, RoundedCornerShape(28.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        if (!currentTrackArtworkUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = currentTrackArtworkUrl,
+                contentDescription = "Carátula",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(28.dp)),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            val logoUrl = remember(currentStation.name, currentStation.url, currentStation.faviconUrl) {
+                StationLogoResolver.getLogoForStation(currentStation.name, currentStation.url, currentStation.faviconUrl)
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { rotationZ = animatedAngle }
+                    .clip(CircleShape)
+                    .background(
+                        brush = Brush.sweepGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.onPrimary,
+                                MaterialTheme.colorScheme.primary
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (logoUrl != null) {
+                    AsyncImage(
+                        model = logoUrl,
+                        contentDescription = currentStation.name,
+                        modifier = Modifier
+                            .fillMaxSize(0.42f)
+                            .clip(CircleShape)
+                            .graphicsLayer { rotationZ = -animatedAngle },
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Radio,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxSize(0.35f)
+                            .graphicsLayer { rotationZ = -animatedAngle },
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FullPlayerMetadata(
+    currentStation: RadioStation,
+    currentTrackTitle: String?,
+    currentTrackArtist: String?
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+    ) {
+        val hasTrackDetails = !currentTrackTitle.isNullOrBlank() || !currentTrackArtist.isNullOrBlank()
+        if (hasTrackDetails) {
+            Text(
+                text = currentTrackTitle ?: currentStation.name,
+                modifier = Modifier.basicMarquee(),
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontSize = 22.sp,
+                    lineHeight = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = (currentTrackArtist ?: currentStation.genre).uppercase(),
+                modifier = Modifier.basicMarquee(),
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontSize = 15.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "📻 ${currentStation.name}",
+                modifier = Modifier.basicMarquee(),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+        } else {
+            Text(
+                text = currentStation.name,
+                modifier = Modifier.basicMarquee(),
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontSize = 24.sp,
+                    lineHeight = 30.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = currentStation.genre.uppercase(),
+                modifier = Modifier.basicMarquee(),
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+        }
+
+        val geoParts = listOfNotNull(
+            currentStation.country.takeIf { it.isNotEmpty() },
+            currentStation.region.takeIf { it.isNotEmpty() },
+            currentStation.province.takeIf { it.isNotEmpty() }
+        ).filter { it.isNotBlank() }
+
+        if (geoParts.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = geoParts.joinToString(" • "),
+                modifier = Modifier.basicMarquee(),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun FullPlayerControls(
+    isPlaying: Boolean,
+    playbackStatus: PlaybackStatus,
+    sleepSecondsLeft: Int?,
+    onRandomStation: () -> Unit,
+    onPreviousStation: () -> Unit,
+    onTogglePlay: () -> Unit,
+    onNextStation: () -> Unit,
+    onOpenSleepTimer: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(
+            onClick = onRandomStation,
+            modifier = Modifier.size(48.dp)
+        ) {
+            Icon(
+                Icons.Default.Shuffle,
+                contentDescription = "Aleatorio",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+
+        IconButton(
+            onClick = onPreviousStation,
+            modifier = Modifier.size(56.dp)
+        ) {
+            Icon(
+                Icons.Default.SkipPrevious,
+                contentDescription = "Anterior",
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(36.dp)
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary)
+                .clickable { onTogglePlay() },
+            contentAlignment = Alignment.Center
+        ) {
+            if (playbackStatus == PlaybackStatus.BUFFERING) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(36.dp),
+                    strokeWidth = 3.dp,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            } else {
+                Icon(
+                    if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
+        }
+
+        IconButton(
+            onClick = onNextStation,
+            modifier = Modifier.size(56.dp)
+        ) {
+            Icon(
+                Icons.Default.SkipNext,
+                contentDescription = "Siguiente",
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(36.dp)
+            )
+        }
+
+        IconButton(
+            onClick = onOpenSleepTimer,
+            modifier = Modifier.size(48.dp)
+        ) {
+            Icon(
+                if (sleepSecondsLeft != null) Icons.Filled.Timer else Icons.Outlined.Timer,
+                contentDescription = "Temporizador",
+                tint = if (sleepSecondsLeft != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun FullPlayerVolumeBar(
+    volume: Float,
+    onVolumeChange: (Float) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            if (volume > 0.05f) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeMute,
+            contentDescription = "Volumen",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Slider(
+            value = volume,
+            onValueChange = onVolumeChange,
+            modifier = Modifier.weight(1f),
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary
+            )
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "${(volume * 100).roundToInt()}%",
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            modifier = Modifier.width(36.dp)
+        )
+    }
+}
 
 @Composable
 fun AddStationOptionsDialog(
