@@ -11,8 +11,10 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -372,13 +374,14 @@ fun RadioApp(
                         Row(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = 24.dp, vertical = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(24.dp)
+                                .padding(horizontal = 20.dp, vertical = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(20.dp)
                         ) {
                             Column(
                                 modifier = Modifier
-                                    .weight(0.40f)
-                                    .fillMaxHeight(),
+                                    .weight(0.38f)
+                                    .fillMaxHeight()
+                                    .verticalScroll(rememberScrollState()),
                                 verticalArrangement = Arrangement.Top
                             ) {
                                 PlaybackDashboard(
@@ -401,11 +404,21 @@ fun RadioApp(
                                     onShare = shareStation,
                                     onOpenFullScreen = { showFullPlayer = true }
                                 )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                TabletSidePanel(
+                                    recentHistory = recentHistory,
+                                    allStations = filteredStations,
+                                    onSelectStation = { viewModel.playStation(it) }
+                                )
+
+                                Spacer(modifier = Modifier.height(24.dp))
                             }
 
                             Column(
                                 modifier = Modifier
-                                    .weight(0.60f)
+                                    .weight(0.62f)
                                     .fillMaxHeight()
                             ) {
                                 NavigationTabSwitcher(

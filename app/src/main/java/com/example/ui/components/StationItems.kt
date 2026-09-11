@@ -117,7 +117,7 @@ fun StationItem(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
                     ),
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
                 Row(
@@ -252,10 +252,10 @@ fun StationsList(
         }
     } else {
         BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-            val useGrid = maxWidth >= 500.dp
+            val useGrid = maxWidth >= 680.dp
             if (useGrid) {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 250.dp),
+                    columns = GridCells.Adaptive(minSize = 320.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("stations_lazy_grid"),

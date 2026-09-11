@@ -439,7 +439,7 @@ fun PlaybackDashboard(
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
                                 ),
-                                maxLines = 1,
+                                maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
                             val geoParts = listOfNotNull(

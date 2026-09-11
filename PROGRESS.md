@@ -26,3 +26,12 @@ Estado: Completo y probado
 Descripción: Pipeline en `.github/workflows/build-apk.yml` que ejecuta los tests unitarios (`gradle :app:testDebugUnitTest`), genera el keystore debug, compila el APK (`assembleDebug`), sube el artefacto temporal y publica automáticamente una Release en GitHub con el archivo APK descargable.
 Archivos involucrados:
 - `.github/workflows/build-apk.yml`
+
+## [2026-09-11] Funcionalidad: Optimización Exclusiva de Layout y Legibilidad en Tablets
+Estado: Completo y probado
+Descripción: Corrección del truncamiento de emisoras en tablets verticales elevando el umbral de grilla a 680dp (1 columna ancha y cómoda en portrait, 2 columnas amplias en landscape) y permitiendo 2 líneas completas para nombres de emisoras. Reorganización de la columna izquierda con `TabletSidePanel` para mostrar acceso rápido a "Últimas escuchadas" con reproducción directa a 1 toque, aprovechando el espacio vertical antes vacío.
+Archivos involucrados:
+- `app/src/main/java/com/example/ui/components/StationItems.kt`
+- `app/src/main/java/com/example/ui/components/PlaybackDashboard.kt`
+- `app/src/main/java/com/example/ui/components/TabletSidePanel.kt`
+- `app/src/main/java/com/example/ui/RadioApp.kt`
