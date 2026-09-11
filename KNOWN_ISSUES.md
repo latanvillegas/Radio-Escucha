@@ -6,8 +6,8 @@
 - **Solución aplicada**: Se añadió `db.playbackHistoryDao()` en la instanciación de `RadioRepository` en `DatabaseTest.kt`.
 - **Prevención**: Ejecutar siempre el task de unit tests `:app:testDebugUnitTest` como parte del ciclo de verificación.
 
-## [2026-09-11] Error: Timeout en prueba de MediaController bajo Robolectric
-- **Síntoma**: `java.util.concurrent.TimeoutException at PlaybackTest.kt:25` al esperar `controllerFuture.get(10, TimeUnit.SECONDS)`.
-- **Causa raíz**: `MediaController.buildAsync()` requiere un dispatch de eventos IPC que en entorno JVM simulado con Robolectric no avanza sincrónicamente a través de `bindService`.
-- **Solución aplicada**: Se refactorizó `PlaybackTest.kt` para evaluar el ciclo de vida del servicio (`onCreate`, `onDestroy`) directamente usando `Robolectric.buildService(PlaybackService::class.java)`.
-- **Prevención**: Usar el controlador de servicios de Robolectric para tests unitarios locales en JVM y dejar el binding asíncrono para tests en runtime o mocks.
+## [2026-09-11] Error: Incompatibilidad de actualización de APK ("No son compatibles")
+- **Síntoma**: Al descargar un APK nuevo e intentar actualizarlo sobre la versión ya instalada, Android muestra un error de incompatibilidad o conflicto de paquetes, obligando a desinstalar la versión anterior.
+- **Causa raíz**: En GitHub Actions (`build-apk.yml`), el comando `keytool -genkey` generaba un nuevo par de claves criptográficas (`debug.keystore`) aleatorio y efímero en cada ejecución del workflow. El sistema operativo Android (PackageManager) exige por seguridad que toda actualización esté firmada exactamente con el mismo certificado digital.
+- **Solución aplicada**: Se modificó `build-apk.yml` para restaurar persistentemente el almacén de claves oficial del repositorio (`debug.keystore.base64`) mediante `base64 -d`. De este modo, todos los APKs generados comparten la misma firma digital SHA-256.
+- **Prevención**: No generar claves nuevas en runners efímeros de CI/CD; reutilizar siempre el keystore versionado o almacenado en secrets.
