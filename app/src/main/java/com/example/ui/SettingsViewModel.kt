@@ -87,7 +87,22 @@ class SettingsViewModel(
         }
     }
 
-    fun importFavorites(context: Context, uri: Uri, onComplete: (Boolean) -> Unit) {
+    fun exportFavorites(context: Context, uri: Uri, onComplete: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val favorites = repository.allStations.first().filter { it.isFavorite }
+                val json = adapter.toJson(favorites)
+                context.contentResolver.openOutputStream(uri)?.use {
+                    it.write(json.toByteArray())
+                }
+                onComplete(true)
+            } catch (e: Exception) {
+                onComplete(false)
+            }
+        }
+    }
+
+    fun importFavorites(context: Context, uri: Uri, onComplete: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
             try {
                 val inputStream = context.contentResolver.openInputStream(uri)
@@ -96,7 +111,6 @@ class SettingsViewModel(
                     val stations = adapter.fromJson(json)
                     if (stations != null) {
                         stations.forEach { station ->
-                            // Ensure imported stations are treated correctly, maybe reset IDs to 0 to avoid conflicts
                             val stationToImport = station.copy(id = 0)
                             repository.insert(stationToImport)
                         }
@@ -109,5 +123,15 @@ class SettingsViewModel(
                 onComplete(false)
             }
         }
+    }
+}
+
+class SettingsViewModelFactory(
+    private val application: Application,
+    private val repository: RadioRepository
+) : androidx.lifecycle.ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+        return SettingsViewModel(application, repository) as T
     }
 }

@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [RadioStation::class, PlaybackHistory::class], version = 4, exportSchema = false)
+@Database(entities = [RadioStation::class, PlaybackHistory::class], version = 1, exportSchema = false)
 abstract class RadioDatabase : RoomDatabase() {
     abstract fun radioDao(): RadioDao
     abstract fun playbackHistoryDao(): PlaybackHistoryDao
@@ -20,9 +20,7 @@ abstract class RadioDatabase : RoomDatabase() {
                     context.applicationContext,
                     RadioDatabase::class.java,
                     "radio_database"
-                )
-                .fallbackToDestructiveMigration(dropAllTables = true)
-                .build()
+                ).build()
                 INSTANCE = instance
                 instance
             }

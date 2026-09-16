@@ -1,9 +1,10 @@
 package com.example.ui
 
-import android.content.Intent
-import androidx.activity.compose.BackHandler
+import android.content.Context
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,27 +13,26 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.vectorResource
-import com.example.R
-import com.example.data.AppTheme
 import com.example.data.AppFontSize
 import com.example.data.AppIconSize
-import com.example.BuildConfig
+import com.example.data.AppTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,34 +40,33 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     onBack: () -> Unit
 ) {
-    val currentTheme by viewModel.appTheme.collectAsState()
-    val fontSize by viewModel.appFontSize.collectAsState()
-    val iconSize by viewModel.appIconSize.collectAsState()
     val context = LocalContext.current
-    val uriHandler = LocalUriHandler.current
-    val scrollState = rememberScrollState()
+    val currentTheme by viewModel.appTheme.collectAsState()
+    val currentFontSize by viewModel.appFontSize.collectAsState()
+    val currentIconSize by viewModel.appIconSize.collectAsState()
 
-    BackHandler {
-        onBack()
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        uri?.let { viewModel.exportFavorites(context, it) }
     }
 
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        uri?.let {
-            viewModel.importFavorites(context, it) { success ->
-                // Maybe show a snackbar or toast
-            }
-        }
+    ) { uri: Uri? ->
+        uri?.let { viewModel.importFavorites(context, it) }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Ajustes", style = MaterialTheme.typography.titleLarge) },
+                title = { Text("Ajustes", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar")
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Atrás"
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -75,153 +74,106 @@ fun SettingsScreen(
                     titleContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
-        },
-        containerColor = MaterialTheme.colorScheme.background
+        }
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(scrollState)
+                .background(MaterialTheme.colorScheme.background)
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // Theme Selector
-            SettingsSection(title = "Tema de la App") {
+            // Theme section
+            SettingsSection(title = "Tema Visual") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AppTheme.values().forEach { theme ->
+                    AppTheme.entries.forEach { theme ->
                         SelectionOption(
                             title = theme.displayName,
-                            isSelected = currentTheme == theme,
+                            isSelected = theme == currentTheme,
                             onClick = { viewModel.setTheme(theme) }
                         )
                     }
                 }
             }
 
-            // Accessibility
-            SettingsSection(title = "Accesibilidad") {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            "Tamaño de Letra",
-                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // Font Size section
+            SettingsSection(title = "Tamaño de Fuente") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AppFontSize.entries.forEach { size ->
+                        CompactSelectionOption(
+                            title = size.displayName,
+                            isSelected = size == currentFontSize,
+                            onClick = { viewModel.setFontSize(size) },
+                            modifier = Modifier.weight(1f)
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            AppFontSize.values().forEach { size ->
-                                CompactSelectionOption(
-                                    title = size.displayName,
-                                    isSelected = fontSize == size,
-                                    onClick = { viewModel.setFontSize(size) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                    }
-
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            "Tamaño de Íconos",
-                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            AppIconSize.values().forEach { size ->
-                                CompactSelectionOption(
-                                    title = size.displayName,
-                                    isSelected = iconSize == size,
-                                    onClick = { viewModel.setIconSize(size) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
                     }
                 }
             }
 
-            // Data Management
-            SettingsSection(title = "Gestión de Datos") {
+            // Icon Size section
+            SettingsSection(title = "Tamaño de Iconos") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AppIconSize.entries.forEach { size ->
+                        CompactSelectionOption(
+                            title = size.displayName,
+                            isSelected = size == currentIconSize,
+                            onClick = { viewModel.setIconSize(size) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
 
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SettingsActionItem(
-                        icon = Icons.Default.FileUpload,
-                        title = "Exportar Favoritos",
-                        subtitle = "Guarda tus estaciones favoritas en un archivo",
-                        onClick = {
-                            viewModel.exportFavorites(context) { file ->
-                                file?.let {
-                                    val uri = FileProvider.getUriForFile(
-                                        context,
-                                        "${context.packageName}.fileprovider",
-                                        it
-                                    )
-                                    val intent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "application/json"
-                                        putExtra(Intent.EXTRA_STREAM, uri)
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    context.startActivity(Intent.createChooser(intent, "Exportar favoritos"))
-                                }
-                            }
-                        }
-                    )
-
+            // Backup / Export
+            SettingsSection(title = "Copia de Seguridad de Favoritos") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SettingsActionItem(
                         icon = Icons.Default.FileDownload,
-                        title = "Importar Favoritos",
-                        subtitle = "Carga favoritos desde un archivo JSON",
-                        onClick = {
-                            importLauncher.launch(arrayOf("application/json", "application/octet-stream"))
-                        }
+                        title = "Exportar favoritos",
+                        subtitle = "Guardar tus estaciones favoritas en un archivo JSON",
+                        onClick = { exportLauncher.launch("mis_radios_favoritas.json") }
+                    )
+                    SettingsActionItem(
+                        icon = Icons.Default.FileUpload,
+                        title = "Importar favoritos",
+                        subtitle = "Restaurar estaciones desde un archivo JSON",
+                        onClick = { importLauncher.launch(arrayOf("application/json")) }
                     )
                 }
             }
 
-            // App Info
-            SettingsSection(title = "Información") {
+            // About section
+            SettingsSection(title = "Acerca de") {
                 SettingsInfoItem(
                     icon = Icons.Default.Info,
-                    title = "Versión de la App",
-                    value = "1.0.0 (Build ${BuildConfig.VERSION_CODE})"
+                    title = "Radio App",
+                    value = "Versión 1.0.0"
                 )
-            }
-
-            // Developer
-            SettingsSection(title = "Desarrollador") {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SettingsInfoItem(
-                        icon = Icons.Default.Person,
-                        title = "Desarrollador",
-                        value = "Latan Villegas"
-                    )
-                    
-                    SettingsActionItem(
-                        icon = ImageVector.vectorResource(id = R.drawable.ic_github),
-                        title = "Perfil de GitHub",
-                        subtitle = "Ver perfil de Latan Villegas",
-                        onClick = { uriHandler.openUri("https://github.com/latanvillegas") }
-                    )
-
-                    SettingsActionItem(
-                        icon = ImageVector.vectorResource(id = R.drawable.ic_github),
-                        title = "Código fuente de esta app",
-                        subtitle = "Ver repositorio en GitHub",
-                        onClick = { uriHandler.openUri("https://github.com/latanvillegas/Radio-Escucha") }
-                    )
-                }
             }
         }
     }
 }
 
 @Composable
-fun SettingsSection(title: String, content: @Composable () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+fun SettingsSection(
+    title: String,
+    content: @Composable () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = title,
-            style = MaterialTheme.typography.labelLarge.copy(
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold
-            )
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 8.dp)
         )
         content()
     }
@@ -238,28 +190,26 @@ fun SelectionOption(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        border = if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
+        border = if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
     ) {
         Row(
             modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
             )
             if (isSelected) {
                 Icon(
-                    Icons.Default.Check,
+                    imageVector = Icons.Default.Check,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
         }
@@ -277,19 +227,18 @@ fun CompactSelectionOption(
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(8.dp),
-        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        border = if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
     ) {
         Box(
-            modifier = Modifier.padding(vertical = 10.dp),
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 11.sp
-                )
+                style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp),
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -297,7 +246,7 @@ fun CompactSelectionOption(
 
 @Composable
 fun SettingsActionItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     title: String,
     subtitle: String,
     onClick: () -> Unit
@@ -309,22 +258,30 @@ fun SettingsActionItem(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-            }
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
             Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text(title, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold))
-                Text(subtitle, style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -332,21 +289,42 @@ fun SettingsActionItem(
 
 @Composable
 fun SettingsInfoItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     title: String,
     value: String
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-        Spacer(modifier = Modifier.width(16.dp))
-        Column {
-            Text(title, style = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
-            Text(value, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

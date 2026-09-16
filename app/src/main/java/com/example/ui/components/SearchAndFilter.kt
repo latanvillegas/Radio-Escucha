@@ -64,6 +64,7 @@ fun SearchSuggestionsDropdown(
                     RadioViewModel.SuggestionType.STATION -> Icons.Default.Radio to MaterialTheme.colorScheme.primary
                     RadioViewModel.SuggestionType.COUNTRY -> Icons.Default.Public to MaterialTheme.colorScheme.secondary
                     RadioViewModel.SuggestionType.REGION -> Icons.Default.Place to MaterialTheme.colorScheme.tertiary
+                    RadioViewModel.SuggestionType.LOCATION -> Icons.Default.Place to MaterialTheme.colorScheme.tertiary
                     RadioViewModel.SuggestionType.GENRE -> Icons.Default.MusicNote to MaterialTheme.colorScheme.error
                     RadioViewModel.SuggestionType.LANGUAGE -> Icons.Default.Language to MaterialTheme.colorScheme.primary
                     RadioViewModel.SuggestionType.KEYWORD -> Icons.Default.Search to MaterialTheme.colorScheme.primary

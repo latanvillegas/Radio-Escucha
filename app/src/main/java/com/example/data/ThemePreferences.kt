@@ -48,18 +48,18 @@ class ThemePreferences(private val context: Context) {
     }
 
     val fontSizeFlow: Flow<AppFontSize> = context.dataStore.data.map { preferences ->
-        val fontSizeName = preferences[FONT_SIZE_KEY] ?: AppFontSize.NORMAL.name
+        val sizeName = preferences[FONT_SIZE_KEY] ?: AppFontSize.NORMAL.name
         try {
-            AppFontSize.valueOf(fontSizeName)
+            AppFontSize.valueOf(sizeName)
         } catch (e: Exception) {
             AppFontSize.NORMAL
         }
     }
 
     val iconSizeFlow: Flow<AppIconSize> = context.dataStore.data.map { preferences ->
-        val iconSizeName = preferences[ICON_SIZE_KEY] ?: AppIconSize.NORMAL.name
+        val sizeName = preferences[ICON_SIZE_KEY] ?: AppIconSize.NORMAL.name
         try {
-            AppIconSize.valueOf(iconSizeName)
+            AppIconSize.valueOf(sizeName)
         } catch (e: Exception) {
             AppIconSize.NORMAL
         }
