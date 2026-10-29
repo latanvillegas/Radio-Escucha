@@ -18,7 +18,6 @@ import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionCommand
-import androidx.media3.session.SessionCommands
 import androidx.media3.session.SessionResult
 import com.example.data.RadioDatabase
 import com.example.data.RadioRepository
@@ -26,10 +25,13 @@ import com.example.data.RadioStation
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.SettableFuture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -39,13 +41,22 @@ class PlaybackService : MediaLibraryService() {
     private var mediaLibrarySession: MediaLibrarySession? = null
     private lateinit var repository: RadioRepository
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var serviceSleepTimerJob: Job? = null
 
-    private val CUSTOM_COMMAND_PREVIOUS = "CUSTOM_COMMAND_PREVIOUS"
-    private val CUSTOM_COMMAND_NEXT = "CUSTOM_COMMAND_NEXT"
-    private val CUSTOM_COMMAND_FAVORITE = "CUSTOM_COMMAND_FAVORITE"
-    private val CUSTOM_COMMAND_RANDOM = "CUSTOM_COMMAND_RANDOM"
-    private val CUSTOM_COMMAND_STOP = "CUSTOM_COMMAND_STOP"
-    private val ROOT_ID = "root_stations"
+    companion object {
+        const val CUSTOM_COMMAND_PREVIOUS = "CUSTOM_COMMAND_PREVIOUS"
+        const val CUSTOM_COMMAND_NEXT = "CUSTOM_COMMAND_NEXT"
+        const val CUSTOM_COMMAND_FAVORITE = "CUSTOM_COMMAND_FAVORITE"
+        const val CUSTOM_COMMAND_RANDOM = "CUSTOM_COMMAND_RANDOM"
+        const val CUSTOM_COMMAND_STOP = "CUSTOM_COMMAND_STOP"
+        const val CUSTOM_COMMAND_SLEEP_TIMER = "CUSTOM_COMMAND_SLEEP_TIMER"
+        const val ARG_SLEEP_MINUTES = "ARG_SLEEP_MINUTES"
+
+        private const val ROOT_ID = "root_stations"
+        private const val FOLDER_FAVORITES = "folder_favorites"
+        private const val FOLDER_RECENT = "folder_recent"
+        private const val FOLDER_ALL = "folder_all"
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -61,7 +72,7 @@ class PlaybackService : MediaLibraryService() {
             .setConnectTimeoutMs(8000)
             .setReadTimeoutMs(15000)
             .setAllowCrossProtocolRedirects(true)
-            .setUserAgent("OpenRadio/1.0 (Android; Linux)")
+            .setUserAgent("OpenRadio/1.2 (Android; Linux)")
 
         val dataSourceFactory = DefaultDataSource.Factory(this, httpDataSourceFactory)
         val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
@@ -76,6 +87,7 @@ class PlaybackService : MediaLibraryService() {
                     .build(),
                 true
             )
+            .setHandleAudioBecomingNoisy(true)
             .build()
         exoPlayer = player
 
@@ -119,6 +131,8 @@ class PlaybackService : MediaLibraryService() {
             .setIconResId(android.R.drawable.ic_menu_close_clear_cancel)
             .build()
 
+        val sleepTimerCommand = SessionCommand(CUSTOM_COMMAND_SLEEP_TIMER, Bundle.EMPTY)
+
         val sessionCallback = object : MediaLibrarySession.Callback {
             override fun onConnect(
                 session: MediaSession,
@@ -130,6 +144,7 @@ class PlaybackService : MediaLibraryService() {
                     .add(favoriteCommand)
                     .add(randomCommand)
                     .add(stopCommand)
+                    .add(sleepTimerCommand)
                     .build()
                 return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                     .setAvailableSessionCommands(sessionCommands)
@@ -149,6 +164,10 @@ class PlaybackService : MediaLibraryService() {
                     CUSTOM_COMMAND_FAVORITE -> toggleFavorite()
                     CUSTOM_COMMAND_RANDOM -> playRandomStationInService()
                     CUSTOM_COMMAND_STOP -> stopPlaybackInService()
+                    CUSTOM_COMMAND_SLEEP_TIMER -> {
+                        val minutes = args.getInt(ARG_SLEEP_MINUTES, 0)
+                        scheduleServiceSleepTimer(minutes)
+                    }
                 }
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
             }
@@ -164,7 +183,7 @@ class PlaybackService : MediaLibraryService() {
                         MediaMetadata.Builder()
                             .setIsBrowsable(true)
                             .setIsPlayable(false)
-                            .setTitle("Mis Estaciones")
+                            .setTitle("OpenRadio")
                             .build()
                     )
                     .build()
@@ -179,11 +198,38 @@ class PlaybackService : MediaLibraryService() {
                 pageSize: Int,
                 params: LibraryParams?
             ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
-                val future = com.google.common.util.concurrent.SettableFuture.create<LibraryResult<ImmutableList<MediaItem>>>()
+                val future = SettableFuture.create<LibraryResult<ImmutableList<MediaItem>>>()
                 serviceScope.launch {
-                    val stations = repository.allStations.first()
-                    val mediaItems = stations.map { mapStationToMediaItem(it) }
-                    future.set(LibraryResult.ofItemList(ImmutableList.copyOf(mediaItems), params))
+                    when (parentId) {
+                        ROOT_ID -> {
+                            val folders = listOf(
+                                buildFolderItem(FOLDER_FAVORITES, "Favoritas", "Tus emisoras guardadas"),
+                                buildFolderItem(FOLDER_RECENT, "Recientes", "Últimas emisoras escuchadas"),
+                                buildFolderItem(FOLDER_ALL, "Todas las Emisoras", "Catálogo completo")
+                            )
+                            future.set(LibraryResult.ofItemList(ImmutableList.copyOf(folders), params))
+                        }
+                        FOLDER_FAVORITES -> {
+                            val all = repository.allStations.first()
+                            val favs = all.filter { it.isFavorite }.ifEmpty { all }
+                            val items = favs.map { mapStationToMediaItem(it) }
+                            future.set(LibraryResult.ofItemList(ImmutableList.copyOf(items), params))
+                        }
+                        FOLDER_RECENT -> {
+                            val all = repository.allStations.first()
+                            val recent = repository.recentHistory.first()
+                            val matched = recent.mapNotNull { h ->
+                                all.find { it.id.toLong() == h.stationId || it.name == h.stationName }
+                            }.distinctBy { it.id }.ifEmpty { all.take(10) }
+                            val items = matched.map { mapStationToMediaItem(it) }
+                            future.set(LibraryResult.ofItemList(ImmutableList.copyOf(items), params))
+                        }
+                        else -> {
+                            val stations = repository.allStations.first()
+                            val mediaItems = stations.map { mapStationToMediaItem(it) }
+                            future.set(LibraryResult.ofItemList(ImmutableList.copyOf(mediaItems), params))
+                        }
+                    }
                 }
                 return future
             }
@@ -193,7 +239,7 @@ class PlaybackService : MediaLibraryService() {
                 controller: MediaSession.ControllerInfo,
                 mediaId: String
             ): ListenableFuture<LibraryResult<MediaItem>> {
-                val future = com.google.common.util.concurrent.SettableFuture.create<LibraryResult<MediaItem>>()
+                val future = SettableFuture.create<LibraryResult<MediaItem>>()
                 serviceScope.launch {
                     val id = mediaId.toLongOrNull()
                     val station = if (id != null) repository.getStationById(id) else null
@@ -202,6 +248,28 @@ class PlaybackService : MediaLibraryService() {
                     } else {
                         future.set(LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE))
                     }
+                }
+                return future
+            }
+
+            override fun onAddMediaItems(
+                mediaSession: MediaSession,
+                controller: MediaSession.ControllerInfo,
+                mediaItems: MutableList<MediaItem>
+            ): ListenableFuture<MutableList<MediaItem>> {
+                val future = SettableFuture.create<MutableList<MediaItem>>()
+                serviceScope.launch {
+                    val allStations = repository.allStations.first()
+                    val resolved = mediaItems.map { item ->
+                        if (item.localConfiguration?.uri != null) {
+                            item
+                        } else {
+                            val id = item.mediaId.toIntOrNull()
+                            val station = allStations.find { it.id == id } ?: allStations.firstOrNull()
+                            if (station != null) mapStationToMediaItem(station) else item
+                        }
+                    }.toMutableList()
+                    future.set(resolved)
                 }
                 return future
             }
@@ -214,7 +282,37 @@ class PlaybackService : MediaLibraryService() {
         mediaLibrarySession = builder.build()
     }
 
+    private fun buildFolderItem(id: String, title: String, subtitle: String): MediaItem {
+        return MediaItem.Builder()
+            .setMediaId(id)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(title)
+                    .setSubtitle(subtitle)
+                    .setIsBrowsable(true)
+                    .setIsPlayable(false)
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_FOLDER_RADIO_STATIONS)
+                    .build()
+            )
+            .build()
+    }
+
+    private fun scheduleServiceSleepTimer(minutes: Int) {
+        serviceSleepTimerJob?.cancel()
+        if (minutes <= 0) return
+        serviceSleepTimerJob = serviceScope.launch {
+            delay(minutes * 60_000L)
+            stopPlaybackInService()
+        }
+    }
+
     private fun mapStationToMediaItem(station: RadioStation): MediaItem {
+        val extras = Bundle().apply {
+            putString("station_url", station.url)
+            putString("station_country", station.country)
+            putString("station_region", station.region)
+            putString("station_favicon", station.faviconUrl)
+        }
         return MediaItem.Builder()
             .setMediaId(station.id.toString())
             .setUri(station.url)
@@ -223,6 +321,8 @@ class PlaybackService : MediaLibraryService() {
                     .setTitle(station.name)
                     .setArtist(station.genre)
                     .setArtworkUri(if (station.faviconUrl.isNotBlank()) android.net.Uri.parse(station.faviconUrl) else null)
+                    .setExtras(extras)
+                    .setIsBrowsable(false)
                     .setIsPlayable(true)
                     .build()
             )
@@ -285,6 +385,7 @@ class PlaybackService : MediaLibraryService() {
     }
 
     override fun onDestroy() {
+        serviceSleepTimerJob?.cancel()
         mediaLibrarySession?.run {
             player.release()
             release()

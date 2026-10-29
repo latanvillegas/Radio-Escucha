@@ -35,3 +35,10 @@ Archivos involucrados:
 - `app/src/main/java/com/example/ui/components/PlaybackDashboard.kt`
 - `app/src/main/java/com/example/ui/components/TabletSidePanel.kt`
 - `app/src/main/java/com/example/ui/RadioApp.kt`
+
+## [2026-10-29] Funcionalidad: Paquete de Mejoras Senior/Staff (Multi-Proveedor, Resiliencia Media3, Ecualizador, Android Auto y Sync)
+Estado: Completo y probado
+Descripción:
+1. **Failover Multi-Nodo y Multi-Proveedor con Caché SWR**: Rotación automática entre `de1`, `fi1` y `at1.api.radio-browser.info`, integración de `DiscoverCacheManager` (0ms warm cache) y selector de fuentes (`RadioBrowser`, `SomaFM`, `iHeartRadio`, `FMStream`, `Curadas`) con debounce de 350ms en búsqueda.
+2. **Motor de Audio Resiliente y Carátulas Dinámicas**: Reconexión automática con backoff exponencial (hasta 3 intentos), sincronización bidireccional `onMediaItemTransition` con notificación/Bluetooth, `setHandleAudioBecomingNoisy(true)`, temporizador de apagado respaldado en `PlaybackService`, geolocalización IP real y carátulas en vivo vía iTunes Search API.
+3. **Ecualizador Nativo, Android Auto y Centro de Respaldo**: Panel de Ecualizador (`Equalizer` + `BassBoost`), árbol de carpetas para Android Auto (`Favoritas`, `Recientes`, `Todas`), pestaña `SyncTab` interactiva con exportación/importación JSON y listas `.M3U`, y optimización R8/ProGuard para Release.

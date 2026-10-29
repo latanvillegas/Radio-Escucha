@@ -43,10 +43,9 @@ class MainActivity : ComponentActivity() {
             }
         }
         
-        // Hide system bars for immersive mode
+        // Keep status bar and navigation bar visible with edge-to-edge transparency
         val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
-        windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
+        windowInsetsController.show(WindowInsetsCompat.Type.systemBars())
         
         // Instantiate SQLite persistence using singletons or standard builder patterns
         val database = RadioDatabase.getDatabase(applicationContext)

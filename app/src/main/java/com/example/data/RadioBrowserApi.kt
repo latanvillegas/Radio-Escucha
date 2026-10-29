@@ -9,6 +9,7 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 data class RadioBrowserStationDto(
@@ -59,24 +60,30 @@ interface RadioBrowserApiService {
         @Query("countrycode") countrycode: String? = null,
         @Query("state") state: String? = null,
         @Query("language") language: String? = null,
-        @Query("limit") limit: Int = 50,
+        @Query("limit") limit: Int = 60,
         @Query("offset") offset: Int = 0,
         @Query("order") order: String = "votes",
-        @Query("reverse") reverse: Boolean = true
+        @Query("reverse") reverse: Boolean = true,
+        @Query("hidebroken") hidebroken: Boolean = true
     ): List<RadioBrowserStationDto>
 
     @GET("json/stations/topclick/{limit}")
     suspend fun getTopClickStations(
-        @Path("limit") limit: Int = 40
+        @Path("limit") limit: Int = 60
     ): List<RadioBrowserStationDto>
 
     @GET("json/stations/topvote/{limit}")
     suspend fun getTopVoteStations(
-        @Path("limit") limit: Int = 40
+        @Path("limit") limit: Int = 60
     ): List<RadioBrowserStationDto>
 }
 
 object RadioBrowserApiClient {
+    private val MIRROR_HOSTS = listOf(
+        "de1.api.radio-browser.info",
+        "fi1.api.radio-browser.info",
+        "at1.api.radio-browser.info"
+    )
     private const val BASE_URL = "https://de1.api.radio-browser.info/"
 
     private val moshi = Moshi.Builder()
@@ -85,13 +92,32 @@ object RadioBrowserApiClient {
 
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor { chain ->
-            val request = chain.request().newBuilder()
-                .header("User-Agent", "OpenRadioApp/1.0")
+            val originalRequest = chain.request().newBuilder()
+                .header("User-Agent", "OpenRadioApp/1.2 (Android)")
                 .build()
-            chain.proceed(request)
+
+            var lastException: IOException? = null
+            for (host in MIRROR_HOSTS) {
+                val newUrl = originalRequest.url.newBuilder().host(host).build()
+                val attemptRequest = originalRequest.newBuilder().url(newUrl).build()
+                try {
+                    val response = chain.proceed(attemptRequest)
+                    if (response.isSuccessful) {
+                        return@addInterceptor response
+                    } else if (response.code >= 500) {
+                        response.close()
+                        continue
+                    } else {
+                        return@addInterceptor response
+                    }
+                } catch (e: IOException) {
+                    lastException = e
+                }
+            }
+            throw lastException ?: IOException("Todos los nodos de RadioBrowser fallaron al responder")
         }
-        .connectTimeout(12, TimeUnit.SECONDS)
-        .readTimeout(12, TimeUnit.SECONDS)
+        .connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
     val service: RadioBrowserApiService by lazy {

@@ -90,13 +90,19 @@ fun RadioApp(
     var showAddOptionsDialog by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
     var showSleepTimerMenu by remember { mutableStateOf(false) }
+    var showEqualizerDialog by remember { mutableStateOf(false) }
     var showFullPlayer by remember { mutableStateOf(false) }
     var activeTab by remember { mutableStateOf(0) }
 
+    val equalizerEnabled by viewModel.equalizerEnabled.collectAsStateWithLifecycle()
+    val selectedEqPreset by viewModel.selectedEqPreset.collectAsStateWithLifecycle()
+    val bassBoostStrength by viewModel.bassBoostStrength.collectAsStateWithLifecycle()
+
     // Handle system back button to return to first tab or close modals
-    BackHandler(enabled = activeTab != 0 || showAddOptionsDialog || showAddDialog || showSleepTimerMenu || showFullPlayer) {
+    BackHandler(enabled = activeTab != 0 || showAddOptionsDialog || showAddDialog || showSleepTimerMenu || showEqualizerDialog || showFullPlayer) {
         when {
             showFullPlayer -> showFullPlayer = false
+            showEqualizerDialog -> showEqualizerDialog = false
             showAddOptionsDialog -> showAddOptionsDialog = false
             showAddDialog -> showAddDialog = false
             showSleepTimerMenu -> showSleepTimerMenu = false
@@ -183,6 +189,19 @@ fun RadioApp(
                         }
                     },
                     actions = {
+                        IconButton(
+                            onClick = { showEqualizerDialog = true },
+                            modifier = Modifier
+                                .testTag("equalizer_top_button")
+                                .minimumInteractiveComponentSize()
+                        ) {
+                            Icon(
+                                Icons.Default.GraphicEq,
+                                contentDescription = "Ecualizador",
+                                tint = if (equalizerEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
                         IconButton(
                             onClick = { showSleepTimerMenu = true },
                             modifier = Modifier
@@ -538,6 +557,19 @@ fun RadioApp(
                 )
             }
 
+            if (showEqualizerDialog) {
+                EqualizerDialog(
+                    enabled = equalizerEnabled,
+                    presets = viewModel.eqPresets,
+                    selectedPreset = selectedEqPreset,
+                    bassBoostStrength = bassBoostStrength,
+                    onToggleEnabled = { viewModel.setEqualizerEnabled(it) },
+                    onSelectPreset = { viewModel.selectEqualizerPreset(it) },
+                    onBassBoostChange = { viewModel.setBassBoost(it) },
+                    onDismiss = { showEqualizerDialog = false }
+                )
+            }
+
             val activeStation = currentStation
             AnimatedVisibility(
                 visible = showFullPlayer && activeStation != null,
@@ -564,6 +596,7 @@ fun RadioApp(
                         sleepSecondsLeft = sleepSecondsLeft,
                         networkStatus = networkStatus,
                         isFavorite = activeStation.isFavorite,
+                        equalizerEnabled = equalizerEnabled,
                         onToggleFavorite = { viewModel.toggleFavorite(it) },
                         onTogglePlay = { viewModel.togglePlayPause() },
                         onStopPlayback = { viewModel.stopPlayback() },
@@ -572,6 +605,7 @@ fun RadioApp(
                         onRandomStation = { viewModel.playRandomStation() },
                         onVolumeChange = { viewModel.setVolume(it) },
                         onOpenSleepTimer = { showSleepTimerMenu = true },
+                        onOpenEqualizer = { showEqualizerDialog = true },
                         onShare = shareStation,
                         onDismiss = { showFullPlayer = false }
                     )

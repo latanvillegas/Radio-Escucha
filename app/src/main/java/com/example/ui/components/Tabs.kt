@@ -1,13 +1,18 @@
 package com.example.ui.components
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -20,6 +25,7 @@ import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -30,9 +36,6 @@ import com.example.data.PlaybackHistory
 import com.example.data.RadioStation
 import com.example.ui.PlaybackStatus
 import com.example.ui.RadioViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @Composable
 fun NavigationTabSwitcher(
@@ -84,6 +87,7 @@ fun NavigationTabSwitcher(
             onShare = onShare
         )
         3 -> SyncTab(
+            viewModel = viewModel,
             bottomBarOffsetHeightPx = bottomBarOffsetHeightPx
         )
     }
@@ -169,61 +173,16 @@ fun HomeTab(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        if (filteredStations.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.SearchOff,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Text(
-                        text = "No se encontraron emisoras",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Prueba con otra búsqueda o selecciona 'Todas' en géneros.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = 80.dp)
-            ) {
-                items(
-                    items = filteredStations,
-                    key = { it.id }
-                ) { station ->
-                    val isPlaying = currentStation?.id == station.id && playbackStatus == PlaybackStatus.PLAYING
-                    val isBuffering = currentStation?.id == station.id && playbackStatus == PlaybackStatus.BUFFERING
-
-                    StationItem(
-                        station = station,
-                        isPlaying = isPlaying,
-                        isBuffering = isBuffering,
-                        onSelect = { viewModel.playStation(it) },
-                        onToggleFavorite = { viewModel.toggleFavorite(it) },
-                        onDelete = { viewModel.deleteStation(it) },
-                        onShare = onShare
-                    )
-                }
-            }
-        }
+        StationsList(
+            filteredStations = filteredStations,
+            currentStation = currentStation,
+            playbackStatus = playbackStatus,
+            onStationSelect = { viewModel.playStation(it) },
+            onToggleFavorite = { viewModel.toggleFavorite(it) },
+            onDeleteStation = { viewModel.deleteStation(it) },
+            onShare = onShare,
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 
@@ -236,10 +195,18 @@ fun DiscoverTab(
     bottomBarOffsetHeightPx: Float
 ) {
     val onlineStations by viewModel.radioBrowserStations.collectAsState()
+    val localStations by viewModel.stations.collectAsState()
     val isLoading by viewModel.radioBrowserLoading.collectAsState()
     val errorMsg by viewModel.radioBrowserError.collectAsState()
     val searchQuery by viewModel.radioBrowserSearchQuery.collectAsState()
     val userCountry by viewModel.userLocationCountry.collectAsState()
+    val userCity by viewModel.userLocationCity.collectAsState()
+    val selectedProvider by viewModel.selectedRadioProvider.collectAsState()
+    val visibleCount by viewModel.visibleDiscoverCount.collectAsState()
+
+    val savedUrls = remember(localStations) {
+        localStations.filter { it.isFavorite }.map { it.url.lowercase() }.toSet()
+    }
 
     var showLocationDialog by remember { mutableStateOf(false) }
 
@@ -247,31 +214,56 @@ fun DiscoverTab(
         modifier = Modifier
             .fillMaxSize()
             .padding(top = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // Search Input
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { viewModel.searchRadioBrowser(it) },
-            placeholder = { Text("Buscar en miles de radios online...") },
+            placeholder = { Text("Buscar en ${selectedProvider}...") },
             leadingIcon = {
                 Icon(Icons.Default.Public, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { viewModel.searchRadioBrowser("") }) {
-                        Icon(Icons.Default.Close, contentDescription = null)
+                        Icon(Icons.Default.Close, contentDescription = "Limpiar búsqueda")
                     }
                 }
             },
             singleLine = true,
             shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("discover_search_input"),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                 unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
             )
         )
+
+        // Multi-Source Provider Selector Row
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            items(viewModel.availableProviders) { provider ->
+                val isSelected = provider == selectedProvider
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { viewModel.setRadioProvider(provider) },
+                    label = { Text(provider, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                    leadingIcon = if (isSelected) {
+                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                    } else null,
+                    shape = RoundedCornerShape(20.dp),
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                )
+            }
+        }
 
         // Quick Category Chips
         LazyRow(
@@ -288,14 +280,17 @@ fun DiscoverTab(
             item {
                 AssistChip(
                     onClick = { viewModel.loadRadioBrowserTopClicked() },
-                    label = { Text("Populares") },
+                    label = { Text("Tendencias") },
                     leadingIcon = { Icon(Icons.Default.TrendingUp, contentDescription = null, modifier = Modifier.size(16.dp)) }
                 )
             }
             item {
                 AssistChip(
                     onClick = { showLocationDialog = true },
-                    label = { Text("País: $userCountry") },
+                    label = {
+                        val locLabel = if (userCity.isNotBlank()) "$userCountry ($userCity)" else userCountry
+                        Text("País: $locLabel")
+                    },
                     leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp)) }
                 )
             }
@@ -317,9 +312,21 @@ fun DiscoverTab(
                     label = { Text("Pop") }
                 )
             }
+            item {
+                AssistChip(
+                    onClick = { viewModel.fetchRadioBrowserByTag("jazz") },
+                    label = { Text("Jazz") }
+                )
+            }
+            item {
+                AssistChip(
+                    onClick = { viewModel.fetchRadioBrowserByTag("latin") },
+                    label = { Text("Latina") }
+                )
+            }
         }
 
-        if (isLoading) {
+        if (isLoading && onlineStations.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -328,7 +335,7 @@ fun DiscoverTab(
             ) {
                 CircularProgressIndicator()
             }
-        } else if (errorMsg != null) {
+        } else if (errorMsg != null && onlineStations.isEmpty()) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
@@ -339,33 +346,53 @@ fun DiscoverTab(
                 ) {
                     Text(text = errorMsg ?: "Error de conexión", color = MaterialTheme.colorScheme.onErrorContainer)
                     Spacer(Modifier.height(8.dp))
-                    Button(onClick = { viewModel.loadRadioBrowserTopVoted() }) {
+                    Button(onClick = { viewModel.loadOnlineStationsForCurrentProvider() }) {
                         Text("Reintentar")
                     }
                 }
             }
         } else {
+            val displayedStations = remember(onlineStations, visibleCount) {
+                onlineStations.take(visibleCount)
+            }
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = 80.dp)
+                contentPadding = PaddingValues(bottom = 88.dp)
             ) {
                 items(
-                    items = onlineStations,
-                    key = { it.url }
+                    items = displayedStations,
+                    key = { "${it.id}_${it.url}" }
                 ) { station ->
                     val isPlaying = currentStation?.url == station.url && playbackStatus == PlaybackStatus.PLAYING
                     val isBuffering = currentStation?.url == station.url && playbackStatus == PlaybackStatus.BUFFERING
+                    val isSaved = savedUrls.contains(station.url.lowercase())
 
                     RadioBrowserStationItem(
                         station = station,
                         isPlaying = isPlaying,
                         isBuffering = isBuffering,
-                        isSaved = false,
+                        isSaved = isSaved,
                         onSelect = { viewModel.playStation(it) },
-                        onSave = { viewModel.saveRadioBrowserStation(station) },
+                        onSave = { viewModel.toggleSaveRadioBrowserStation(station) },
                         onShare = onShare
                     )
+                }
+
+                if (onlineStations.size > visibleCount) {
+                    item {
+                        OutlinedButton(
+                            onClick = { viewModel.loadMoreDiscoverChunk() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                                .testTag("load_more_discover_button")
+                        ) {
+                            Icon(Icons.Default.ExpandMore, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Mostrar más emisoras (${onlineStations.size - visibleCount} restantes)")
+                        }
+                    }
                 }
             }
         }
@@ -514,7 +541,7 @@ fun LibraryTab(
                             HistoryItem(
                                 historyItem = item,
                                 onSelect = {
-                                    val matched = allStations.find { s -> s.id.toLong() == item.stationId }
+                                    val matched = allStations.find { s -> s.id.toLong() == item.stationId || s.name == item.stationName }
                                     if (matched != null) {
                                         viewModel.playStation(matched)
                                     }
@@ -530,21 +557,51 @@ fun LibraryTab(
 
 @Composable
 fun SyncTab(
+    viewModel: RadioViewModel,
     bottomBarOffsetHeightPx: Float
 ) {
+    val context = LocalContext.current
+    val allStations by viewModel.stations.collectAsState()
+    val recentHistory by viewModel.recentHistory.collectAsState()
+    val syncStatusMessage by viewModel.syncStatusMessage.collectAsState()
+
+    val favoritesCount = remember(allStations) { allStations.count { it.isFavorite } }
+    val customCount = remember(allStations) { allStations.count { it.isCustom } }
+
+    val exportJsonLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        uri?.let { viewModel.exportFavoritesToJsonUri(context, it) }
+    }
+
+    val importJsonLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let { viewModel.importFavoritesFromJsonUri(context, it) }
+    }
+
+    val exportM3uLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("audio/x-mpegurl")
+    ) { uri: Uri? ->
+        uri?.let { viewModel.exportPlaylistToM3uUri(context, it) }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(vertical = 8.dp)
+            .padding(bottom = 88.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        // Header Card with Live Stats
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
         ) {
             Column(
-                modifier = Modifier.padding(20.dp),
+                modifier = Modifier.padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -552,26 +609,167 @@ fun SyncTab(
                         imageVector = Icons.Default.CloudDone,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(30.dp)
                     )
                     Spacer(Modifier.width(12.dp))
-                    Text(
-                        text = "Almacenamiento Local Seguro",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                    Column {
+                        Text(
+                            text = "Centro de Respaldo y Sincronización",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Base de datos SQLite Room + Caché de Descubrimiento",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    StatBadgeCard(
+                        label = "Emisoras",
+                        value = allStations.size.toString(),
+                        modifier = Modifier.weight(1f)
+                    )
+                    StatBadgeCard(
+                        label = "Favoritas",
+                        value = favoritesCount.toString(),
+                        modifier = Modifier.weight(1f)
+                    )
+                    StatBadgeCard(
+                        label = "Propias",
+                        value = customCount.toString(),
+                        modifier = Modifier.weight(1f)
+                    )
+                    StatBadgeCard(
+                        label = "Historial",
+                        value = recentHistory.size.toString(),
+                        modifier = Modifier.weight(1f)
                     )
                 }
-                Text(
-                    text = "Tus estaciones personalizadas, favoritos e historial se guardan localmente en tu dispositivo mediante SQLite Room.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "Puedes hacer copias de seguridad de tus favoritos exportándolos a un archivo JSON desde Ajustes en cualquier momento.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
+        }
+
+        if (!syncStatusMessage.isNullOrBlank()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = syncStatusMessage ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { viewModel.clearSyncStatusMessage() }) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Cerrar aviso",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
+        }
+
+        // Direct Actions
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Portabilidad de Biblioteca",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                Button(
+                    onClick = { exportJsonLauncher.launch("openradio_favoritos.json") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("sync_export_json_button"),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.FileDownload, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Exportar Favoritos a JSON ($favoritesCount)")
+                }
+
+                OutlinedButton(
+                    onClick = { importJsonLauncher.launch(arrayOf("application/json", "*/*")) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("sync_import_json_button"),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.FileUpload, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Importar y Fusionar desde JSON")
+                }
+
+                FilledTonalButton(
+                    onClick = { exportM3uLauncher.launch("openradio_playlist.m3u") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("sync_export_m3u_button"),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.QueueMusic, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Exportar Lista Universal .M3U (VLC / Auto)")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatBadgeCard(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -603,7 +801,9 @@ fun LocationSelectorDialog(
         title = { Text("Seleccionar Ubicación", fontWeight = FontWeight.Bold) },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 TextButton(
@@ -616,7 +816,7 @@ fun LocationSelectorDialog(
                     ) {
                         Icon(Icons.Default.MyLocation, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Detectar automáticamente por red")
+                        Text("Detectar automáticamente por IP")
                     }
                 }
 

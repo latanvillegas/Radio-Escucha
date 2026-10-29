@@ -1,7 +1,9 @@
 package com.example.ui.components
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -18,17 +20,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.example.data.RadioStation
 import com.example.ui.PlaybackStatus
 import com.example.util.ConnectivityObserver
+import kotlin.math.roundToInt
 
 private fun formatTimeLeft(seconds: Int?): String {
     if (seconds == null) return "00:00"
@@ -37,6 +37,7 @@ private fun formatTimeLeft(seconds: Int?): String {
     return String.format("%02d:%02d", mins, secs)
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FullPlayerScreen(
     currentStation: RadioStation,
@@ -48,6 +49,7 @@ fun FullPlayerScreen(
     sleepSecondsLeft: Int?,
     networkStatus: ConnectivityObserver.Status,
     isFavorite: Boolean,
+    equalizerEnabled: Boolean = false,
     onToggleFavorite: (RadioStation) -> Unit,
     onTogglePlay: () -> Unit,
     onStopPlayback: () -> Unit,
@@ -56,6 +58,7 @@ fun FullPlayerScreen(
     onRandomStation: () -> Unit,
     onVolumeChange: (Float) -> Unit,
     onOpenSleepTimer: () -> Unit,
+    onOpenEqualizer: () -> Unit = {},
     onShare: (RadioStation) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -117,6 +120,13 @@ fun FullPlayerScreen(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onOpenEqualizer) {
+                        Icon(
+                            imageVector = Icons.Default.GraphicEq,
+                            contentDescription = "Ecualizador",
+                            tint = if (equalizerEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
+                        )
+                    }
                     IconButton(onClick = { onToggleFavorite(currentStation) }) {
                         Icon(
                             imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
@@ -161,7 +171,7 @@ fun FullPlayerScreen(
                 )
             }
 
-            // Track metadata
+            // Track metadata with marquee support
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -173,7 +183,9 @@ fun FullPlayerScreen(
                     color = MaterialTheme.colorScheme.onBackground,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .basicMarquee()
                 )
 
                 if (!currentTrackTitle.isNullOrBlank()) {
@@ -184,7 +196,9 @@ fun FullPlayerScreen(
                         fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .basicMarquee()
                     )
                 }
 
@@ -336,6 +350,108 @@ fun FullPlayerScreen(
             }
         }
     }
+}
+
+@Composable
+fun EqualizerDialog(
+    enabled: Boolean,
+    presets: List<String>,
+    selectedPreset: String,
+    bassBoostStrength: Float,
+    onToggleEnabled: (Boolean) -> Unit,
+    onSelectPreset: (String) -> Unit,
+    onBassBoostChange: (Float) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.GraphicEq, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Ecualizador y Audio", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                }
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = onToggleEnabled
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    text = "Perfil Acústico",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                presets.chunked(2).forEach { rowPresets ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        rowPresets.forEach { preset ->
+                            val isSelected = preset == selectedPreset && enabled
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { onSelectPreset(preset) },
+                                label = {
+                                    Text(
+                                        text = preset,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        textAlign = TextAlign.Center
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider()
+
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Refuerzo de Graves (Bass Boost)",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${(bassBoostStrength * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Slider(
+                        value = bassBoostStrength,
+                        onValueChange = onBassBoostChange,
+                        valueRange = 0f..1f
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Listo")
+            }
+        }
+    )
 }
 
 @Composable
