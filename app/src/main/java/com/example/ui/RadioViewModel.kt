@@ -144,8 +144,10 @@ class RadioViewModel(
             list = list.filter {
                 normalize(it.name).contains(q, ignoreCase = true) ||
                         normalize(it.genre).contains(q, ignoreCase = true) ||
-                        normalize(it.country ?: "").contains(q, ignoreCase = true) ||
-                        normalize(it.region ?: "").contains(q, ignoreCase = true)
+                        normalize(it.country).contains(q, ignoreCase = true) ||
+                        normalize(it.region).contains(q, ignoreCase = true) ||
+                        normalize(it.province).contains(q, ignoreCase = true) ||
+                        normalize(it.district).contains(q, ignoreCase = true)
             }
         }
         list
@@ -828,12 +830,18 @@ class RadioViewModel(
                         } else base
                     }
                     "Curadas" -> {
-                        val curated = MultiSourceRadioClients.fallbackGitHubCuratedList + MultiSourceRadioClients.fallbackFmStreamList
+                        val cajamarcaCurated = RadioRepository.getDefaultStations()
+                            .filter { it.region.equals("Cajamarca", ignoreCase = true) }
+                            .mapIndexed { idx, s -> s.copy(id = 9500 + idx) }
+                        val curated = cajamarcaCurated + MultiSourceRadioClients.fallbackGitHubCuratedList + MultiSourceRadioClients.fallbackFmStreamList
                         if (query.isNotBlank()) {
                             curated.filter {
                                 it.name.contains(query, ignoreCase = true) ||
                                         it.genre.contains(query, ignoreCase = true) ||
-                                        it.country.contains(query, ignoreCase = true)
+                                        it.country.contains(query, ignoreCase = true) ||
+                                        it.region.contains(query, ignoreCase = true) ||
+                                        it.province.contains(query, ignoreCase = true) ||
+                                        it.district.contains(query, ignoreCase = true)
                             }
                         } else curated
                     }
@@ -1171,7 +1179,17 @@ class RadioViewModel(
         list.filter { normalize(it.name).contains(q, ignoreCase = true) }
             .take(3)
             .forEach {
-                suggestions.add(SearchSuggestion(it.name, it.genre, it.name, SuggestionType.STATION))
+                val locInfo = listOf(it.province, it.region, it.country).filter { p -> p.isNotBlank() }.distinct().joinToString(", ")
+                val sub = if (locInfo.isNotBlank()) "${it.genre} • $locInfo" else it.genre
+                suggestions.add(SearchSuggestion(it.name, sub, it.name, SuggestionType.STATION))
+            }
+
+        list.mapNotNull { it.province.takeIf { p -> p.isNotBlank() } }
+            .distinct()
+            .filter { normalize(it).contains(q, ignoreCase = true) }
+            .take(2)
+            .forEach {
+                suggestions.add(SearchSuggestion(it, "Provincia / Localidad", it, SuggestionType.LOCATION))
             }
 
         list.map { it.genre }
