@@ -24,6 +24,9 @@ import com.example.data.RadioStation
 import com.example.ui.PlaybackStatus
 import com.example.util.ConnectivityObserver
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.basicMarquee
+
 private fun formatTimeLeft(seconds: Int?): String {
     if (seconds == null) return "00:00"
     val mins = seconds / 60
@@ -31,11 +34,13 @@ private fun formatTimeLeft(seconds: Int?): String {
     return String.format("%02d:%02d", mins, secs)
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PlaybackDashboard(
     currentStation: RadioStation?,
     currentTrackTitle: String? = null,
     currentTrackArtist: String? = null,
+    currentTrackAlbum: String? = null,
     currentTrackArtworkUrl: String? = null,
     playbackStatus: PlaybackStatus,
     volume: Float,
@@ -192,7 +197,7 @@ fun PlaybackDashboard(
                 }
             }
 
-            // Main Info: Logo + Titles
+            // Main Info: Logo + Station + Song, Artist & Album
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -202,7 +207,7 @@ fun PlaybackDashboard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(68.dp)
+                        .size(72.dp)
                         .clip(RoundedCornerShape(14.dp))
                 ) {
                     if (currentStation != null) {
@@ -231,40 +236,91 @@ fun PlaybackDashboard(
                     }
                 }
 
-                Column(modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
                     Text(
                         text = currentStation?.name ?: "Selecciona una emisora",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        modifier = Modifier.basicMarquee()
                     )
-                    
-                    if (!currentTrackTitle.isNullOrBlank()) {
+
+                    if (currentStation != null) {
+                        // Canción
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MusicNote,
+                                contentDescription = "Canción",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = currentTrackTitle?.takeIf { it.isNotBlank() } ?: "Transmisión en directo",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                modifier = Modifier.basicMarquee()
+                            )
+                        }
+
+                        // Artista
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = "Artista",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            val artistLabel = currentTrackArtist?.takeIf { it.isNotBlank() }
+                                ?: currentStation.genre.ifBlank { currentStation.country }
+                            Text(
+                                text = "Artista: $artistLabel",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        // Álbum
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Album,
+                                contentDescription = "Álbum",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            val albumLabel = currentTrackAlbum?.takeIf { it.isNotBlank() }
+                                ?: currentStation.country.ifBlank { "Radio en Vivo" }
+                            Text(
+                                text = "Álbum: $albumLabel",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    } else {
                         Text(
-                            text = currentTrackTitle,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            text = "Toca cualquier estación para sintonizar",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-
-                    val subInfo = when {
-                        !currentTrackArtist.isNullOrBlank() -> currentTrackArtist
-                        currentStation?.genre?.isNotBlank() == true -> currentStation.genre
-                        currentStation?.country?.isNotBlank() == true -> currentStation.country
-                        else -> "Transmisión en directo"
-                    }
-                    Text(
-                        text = subInfo,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
                 }
 
                 if (isPlaying) {

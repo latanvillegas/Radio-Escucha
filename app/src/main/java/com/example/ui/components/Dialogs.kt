@@ -43,6 +43,7 @@ fun FullPlayerScreen(
     currentStation: RadioStation,
     currentTrackTitle: String?,
     currentTrackArtist: String?,
+    currentTrackAlbum: String? = null,
     currentTrackArtworkUrl: String?,
     playbackStatus: PlaybackStatus,
     volume: Float,
@@ -147,7 +148,7 @@ fun FullPlayerScreen(
             // Central Artwork / Vinyl
             Box(
                 modifier = Modifier
-                    .size(260.dp)
+                    .size(230.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
@@ -157,7 +158,7 @@ fun FullPlayerScreen(
                     stationUrl = currentStation.url,
                     faviconUrl = currentTrackArtworkUrl ?: currentStation.faviconUrl,
                     modifier = Modifier
-                        .size(240.dp)
+                        .size(214.dp)
                         .clip(CircleShape)
                         .then(if (isPlaying) Modifier.rotate(rotationAngle) else Modifier)
                 )
@@ -165,16 +166,17 @@ fun FullPlayerScreen(
                 // Vinyl center spindle hole
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.background)
                 )
             }
 
-            // Track metadata with marquee support
+            // Track metadata: Station + Song, Artist, Album Card
             Column(
+                modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
                     text = currentStation.name,
@@ -188,37 +190,112 @@ fun FullPlayerScreen(
                         .basicMarquee()
                 )
 
-                if (!currentTrackTitle.isNullOrBlank()) {
-                    Text(
-                        text = currentTrackTitle,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                ) {
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .basicMarquee()
-                    )
-                }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // Nombre de la Canción
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MusicNote,
+                                contentDescription = "Canción",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Canción:",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = currentTrackTitle?.takeIf { it.isNotBlank() } ?: "Transmisión en directo",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .basicMarquee()
+                            )
+                        }
 
-                val artistText = currentTrackArtist ?: currentStation.country ?: ""
-                if (artistText.isNotBlank()) {
-                    Text(
-                        text = artistText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                        // Artista
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = "Artista",
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Artista:",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = currentTrackArtist?.takeIf { it.isNotBlank() }
+                                    ?: currentStation.genre.ifBlank { "Emisora en vivo" },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .basicMarquee()
+                            )
+                        }
+
+                        // Álbum
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Album,
+                                contentDescription = "Álbum",
+                                tint = MaterialTheme.colorScheme.tertiary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Álbum:",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = currentTrackAlbum?.takeIf { it.isNotBlank() }
+                                    ?: currentStation.country.ifBlank { "Radio Online" },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .basicMarquee()
+                            )
+                        }
+                    }
                 }
 
                 if (sleepSecondsLeft != null && sleepSecondsLeft > 0) {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                        modifier = Modifier.padding(top = 4.dp)
+                        modifier = Modifier.padding(top = 2.dp)
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),

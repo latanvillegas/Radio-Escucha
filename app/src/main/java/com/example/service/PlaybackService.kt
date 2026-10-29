@@ -308,6 +308,8 @@ class PlaybackService : MediaLibraryService() {
 
     private fun mapStationToMediaItem(station: RadioStation): MediaItem {
         val extras = Bundle().apply {
+            putString("station_name", station.name)
+            putString("station_genre", station.genre)
             putString("station_url", station.url)
             putString("station_country", station.country)
             putString("station_region", station.region)
@@ -318,8 +320,9 @@ class PlaybackService : MediaLibraryService() {
             .setUri(station.url)
             .setMediaMetadata(
                 MediaMetadata.Builder()
-                    .setTitle(station.name)
-                    .setArtist(station.genre)
+                    .setStation(station.name)
+                    .setSubtitle(station.genre)
+                    .setGenre(station.genre)
                     .setArtworkUri(if (station.faviconUrl.isNotBlank()) android.net.Uri.parse(station.faviconUrl) else null)
                     .setExtras(extras)
                     .setIsBrowsable(false)

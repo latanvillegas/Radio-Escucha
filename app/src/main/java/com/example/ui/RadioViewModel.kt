@@ -88,6 +88,9 @@ class RadioViewModel(
     private val _currentTrackArtist = MutableStateFlow<String?>(null)
     val currentTrackArtist: StateFlow<String?> = _currentTrackArtist.asStateFlow()
 
+    private val _currentTrackAlbum = MutableStateFlow<String?>(null)
+    val currentTrackAlbum: StateFlow<String?> = _currentTrackAlbum.asStateFlow()
+
     private val _currentTrackArtworkUrl = MutableStateFlow<String?>(null)
     val currentTrackArtworkUrl: StateFlow<String?> = _currentTrackArtworkUrl.asStateFlow()
 
@@ -255,6 +258,7 @@ class RadioViewModel(
             .setReadTimeoutMs(15000)
             .setAllowCrossProtocolRedirects(true)
             .setUserAgent("OpenRadio/1.2 (Android; Linux)")
+            .setDefaultRequestProperties(mapOf("Icy-MetaData" to "1"))
         val dataSourceFactory = DefaultDataSource.Factory(application, httpDataSourceFactory)
         val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
         localPlayer = ExoPlayer.Builder(application)
@@ -302,12 +306,21 @@ class RadioViewModel(
                     ?: _radioBrowserStations.value.find { it.id == id }
                 if (matched != null && _currentStation.value?.id != matched.id) {
                     _currentStation.value = matched
+                    _currentTrackTitle.value = null
+                    _currentTrackArtist.value = null
+                    _currentTrackAlbum.value = null
                     _currentTrackArtworkUrl.value = matched.faviconUrl
                 } else if (_currentStation.value == null) {
                     val extras = mediaItem.mediaMetadata.extras
                     val url = extras?.getString("station_url") ?: mediaItem.localConfiguration?.uri?.toString() ?: ""
-                    val name = mediaItem.mediaMetadata.title?.toString() ?: "Radio en Vivo"
-                    val genre = mediaItem.mediaMetadata.artist?.toString() ?: "Directo"
+                    val name = extras?.getString("station_name")
+                        ?: mediaItem.mediaMetadata.station?.toString()
+                        ?: mediaItem.mediaMetadata.title?.toString()
+                        ?: "Radio en Vivo"
+                    val genre = extras?.getString("station_genre")
+                        ?: mediaItem.mediaMetadata.subtitle?.toString()
+                        ?: mediaItem.mediaMetadata.artist?.toString()
+                        ?: "Directo"
                     val favicon = extras?.getString("station_favicon") ?: mediaItem.mediaMetadata.artworkUri?.toString() ?: ""
                     if (url.isNotBlank()) {
                         _currentStation.value = RadioStation(
@@ -321,24 +334,27 @@ class RadioViewModel(
                 }
             }
 
+            override fun onMetadata(metadata: androidx.media3.common.Metadata) {
+                val builder = MediaMetadata.Builder()
+                for (i in 0 until metadata.length()) {
+                    metadata.get(i).populateMediaMetadata(builder)
+                }
+                val populated = builder.build()
+                handleIncomingStreamMetadata(
+                    rawTitle = populated.title?.toString(),
+                    rawArtist = populated.artist?.toString(),
+                    rawAlbum = populated.albumTitle?.toString(),
+                    rawArtworkUri = populated.artworkUri?.toString()
+                )
+            }
+
             override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
-                val rawTitle = mediaMetadata.title?.toString()?.trim()
-                val rawArtist = mediaMetadata.artist?.toString()?.trim()
-                val stationName = _currentStation.value?.name?.trim()
-
-                if (!rawTitle.isNullOrBlank() && !rawTitle.equals(stationName, ignoreCase = true)) {
-                    _currentTrackTitle.value = rawTitle
-                    _currentTrackArtist.value = rawArtist
-                    fetchTrackArtworkFromItunes(rawTitle, rawArtist)
-                } else {
-                    _currentTrackTitle.value = null
-                    _currentTrackArtist.value = null
-                }
-
-                val metaArt = mediaMetadata.artworkUri?.toString()
-                if (!metaArt.isNullOrBlank()) {
-                    _currentTrackArtworkUrl.value = metaArt
-                }
+                handleIncomingStreamMetadata(
+                    rawTitle = mediaMetadata.title?.toString(),
+                    rawArtist = mediaMetadata.artist?.toString(),
+                    rawAlbum = mediaMetadata.albumTitle?.toString(),
+                    rawArtworkUri = mediaMetadata.artworkUri?.toString()
+                )
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -364,23 +380,90 @@ class RadioViewModel(
         })
     }
 
-    private fun fetchTrackArtworkFromItunes(title: String, artist: String?) {
+    private fun handleIncomingStreamMetadata(
+        rawTitle: String?,
+        rawArtist: String?,
+        rawAlbum: String?,
+        rawArtworkUri: String?
+    ) {
+        val stationName = _currentStation.value?.name?.trim().orEmpty()
+        val stationGenre = _currentStation.value?.genre?.trim().orEmpty()
+        val cleanedRaw = rawTitle?.trim()
+            ?.removePrefix("Now Playing:")
+            ?.removePrefix("NOW PLAYING:")
+            ?.trim()
+
+        if (!cleanedRaw.isNullOrBlank() &&
+            !cleanedRaw.equals(stationName, ignoreCase = true) &&
+            !cleanedRaw.equals("unknown", ignoreCase = true) &&
+            !cleanedRaw.equals("stream", ignoreCase = true)
+        ) {
+            var parsedArtist: String? = rawArtist?.trim()?.takeIf {
+                it.isNotBlank() && !it.equals(stationGenre, ignoreCase = true) && !it.equals(stationName, ignoreCase = true)
+            }
+            var parsedTitle: String = cleanedRaw
+            var parsedAlbum: String? = rawAlbum?.trim()?.takeIf { it.isNotBlank() }
+
+            // Parse ICY combined format: "Artista - Canción" or "Artista - Canción - Álbum"
+            val separators = listOf(" - ", " – ", " — ", " / ")
+            val matchedSep = separators.firstOrNull { cleanedRaw.contains(it) }
+            if (matchedSep != null) {
+                val parts = cleanedRaw.split(matchedSep).map { it.trim() }.filter { it.isNotBlank() }
+                if (parts.size >= 2) {
+                    if (parsedArtist.isNullOrBlank()) {
+                        parsedArtist = parts[0]
+                    }
+                    parsedTitle = parts[1]
+                    if (parts.size >= 3 && parsedAlbum.isNullOrBlank()) {
+                        parsedAlbum = parts[2]
+                    }
+                }
+            }
+
+            // Extract album in brackets/parentheses if formatted like "Song Title [Album Name]"
+            val bracketRegex = Regex("^(.*?)\\s*\\[([^]]+)]$").find(parsedTitle)
+            if (bracketRegex != null && parsedAlbum.isNullOrBlank()) {
+                parsedTitle = bracketRegex.groupValues[1].trim()
+                parsedAlbum = bracketRegex.groupValues[2].trim()
+            }
+
+            _currentTrackTitle.value = parsedTitle
+            _currentTrackArtist.value = parsedArtist
+            if (!parsedAlbum.isNullOrBlank()) {
+                _currentTrackAlbum.value = parsedAlbum
+            }
+            fetchTrackMetadataFromItunes(parsedTitle, parsedArtist)
+        }
+
+        if (!rawArtworkUri.isNullOrBlank()) {
+            _currentTrackArtworkUrl.value = rawArtworkUri
+        }
+    }
+
+    private fun fetchTrackMetadataFromItunes(title: String, artist: String?) {
         artworkFetchJob?.cancel()
         artworkFetchJob = viewModelScope.launch(Dispatchers.IO) {
             try {
-                val searchTerm = listOfNotNull(title, artist)
+                val searchTerm = listOfNotNull(artist, title)
                     .joinToString(" ")
                     .replace(Regex("[^\\p{L}\\p{N}\\s-]"), " ")
                     .trim()
                 if (searchTerm.length < 3) return@launch
                 val response = MultiSourceRadioClients.iTunesSearchService.searchSong(term = searchTerm, limit = 1)
-                val highResArtwork = response.results?.firstOrNull()?.artworkUrl100
-                    ?.replace("100x100bb", "600x600bb")
+                val match = response.results?.firstOrNull() ?: return@launch
+
+                if (_currentTrackArtist.value.isNullOrBlank() && !match.artistName.isNullOrBlank()) {
+                    _currentTrackArtist.value = match.artistName
+                }
+                if (!match.collectionName.isNullOrBlank()) {
+                    _currentTrackAlbum.value = match.collectionName
+                }
+                val highResArtwork = match.artworkUrl100?.replace("100x100bb", "600x600bb")
                 if (!highResArtwork.isNullOrBlank()) {
                     _currentTrackArtworkUrl.value = highResArtwork
                 }
             } catch (_: Exception) {
-                // Keep station logo if iTunes lookup fails
+                // Keep parsed ICY metadata and station logo if iTunes lookup fails
             }
         }
     }
@@ -469,12 +552,14 @@ class RadioViewModel(
 
     fun playStation(station: RadioStation) {
         reconnectJob?.cancel()
+        artworkFetchJob?.cancel()
         retryAttempt = 0
         _currentStation.value = station
         _errorMessage.value = null
         _playbackStatus.value = PlaybackStatus.BUFFERING
         _currentTrackTitle.value = null
         _currentTrackArtist.value = null
+        _currentTrackAlbum.value = null
         _currentTrackArtworkUrl.value = station.faviconUrl
 
         viewModelScope.launch {
@@ -482,6 +567,8 @@ class RadioViewModel(
         }
 
         val extras = Bundle().apply {
+            putString("station_name", station.name)
+            putString("station_genre", station.genre)
             putString("station_url", station.url)
             putString("station_country", station.country)
             putString("station_region", station.region)
@@ -493,8 +580,9 @@ class RadioViewModel(
             .setUri(station.url)
             .setMediaMetadata(
                 MediaMetadata.Builder()
-                    .setTitle(station.name)
-                    .setArtist(station.genre)
+                    .setStation(station.name)
+                    .setSubtitle(station.genre)
+                    .setGenre(station.genre)
                     .setArtworkUri(if (station.faviconUrl.isNotBlank()) Uri.parse(station.faviconUrl) else null)
                     .setExtras(extras)
                     .build()
@@ -527,10 +615,12 @@ class RadioViewModel(
 
     fun stopPlayback() {
         reconnectJob?.cancel()
+        artworkFetchJob?.cancel()
         getActivePlayer()?.stop()
         _playbackStatus.value = PlaybackStatus.IDLE
         _currentTrackTitle.value = null
         _currentTrackArtist.value = null
+        _currentTrackAlbum.value = null
     }
 
     fun playNextStation() {

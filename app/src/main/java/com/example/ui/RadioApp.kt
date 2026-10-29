@@ -62,6 +62,7 @@ fun RadioApp(
     val currentStation by viewModel.currentStation.collectAsStateWithLifecycle()
     val currentTrackTitle by viewModel.currentTrackTitle.collectAsStateWithLifecycle()
     val currentTrackArtist by viewModel.currentTrackArtist.collectAsStateWithLifecycle()
+    val currentTrackAlbum by viewModel.currentTrackAlbum.collectAsStateWithLifecycle()
     val currentTrackArtworkUrl by viewModel.currentTrackArtworkUrl.collectAsStateWithLifecycle()
     val playbackStatus by viewModel.playbackStatus.collectAsStateWithLifecycle()
     val volume by viewModel.volume.collectAsStateWithLifecycle()
@@ -407,6 +408,7 @@ fun RadioApp(
                                     currentStation = currentStation,
                                     currentTrackTitle = currentTrackTitle,
                                     currentTrackArtist = currentTrackArtist,
+                                    currentTrackAlbum = currentTrackAlbum,
                                     currentTrackArtworkUrl = currentTrackArtworkUrl,
                                     playbackStatus = playbackStatus,
                                     volume = volume,
@@ -482,6 +484,7 @@ fun RadioApp(
                             currentStation = currentStation,
                             currentTrackTitle = currentTrackTitle,
                             currentTrackArtist = currentTrackArtist,
+                            currentTrackAlbum = currentTrackAlbum,
                             currentTrackArtworkUrl = currentTrackArtworkUrl,
                             playbackStatus = playbackStatus,
                             volume = volume,
@@ -590,6 +593,7 @@ fun RadioApp(
                         currentStation = activeStation,
                         currentTrackTitle = currentTrackTitle,
                         currentTrackArtist = currentTrackArtist,
+                        currentTrackAlbum = currentTrackAlbum,
                         currentTrackArtworkUrl = currentTrackArtworkUrl,
                         playbackStatus = playbackStatus,
                         volume = volume,
