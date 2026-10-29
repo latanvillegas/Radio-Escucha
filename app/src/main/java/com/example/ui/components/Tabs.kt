@@ -19,6 +19,7 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusManager
@@ -107,7 +108,7 @@ fun HomeTab(
     onShare: (RadioStation) -> Unit,
     nestedScrollConnection: NestedScrollConnection
 ) {
-    val homeSuggestions by viewModel.homeSuggestions.collectAsState()
+    val homeSuggestions by viewModel.homeSuggestions.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -194,15 +195,15 @@ fun DiscoverTab(
     onShare: (RadioStation) -> Unit,
     bottomBarOffsetHeightPx: Float
 ) {
-    val onlineStations by viewModel.radioBrowserStations.collectAsState()
-    val localStations by viewModel.stations.collectAsState()
-    val isLoading by viewModel.radioBrowserLoading.collectAsState()
-    val errorMsg by viewModel.radioBrowserError.collectAsState()
-    val searchQuery by viewModel.radioBrowserSearchQuery.collectAsState()
-    val userCountry by viewModel.userLocationCountry.collectAsState()
-    val userCity by viewModel.userLocationCity.collectAsState()
-    val selectedProvider by viewModel.selectedRadioProvider.collectAsState()
-    val visibleCount by viewModel.visibleDiscoverCount.collectAsState()
+    val onlineStations by viewModel.radioBrowserStations.collectAsStateWithLifecycle()
+    val localStations by viewModel.stations.collectAsStateWithLifecycle()
+    val isLoading by viewModel.radioBrowserLoading.collectAsStateWithLifecycle()
+    val errorMsg by viewModel.radioBrowserError.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.radioBrowserSearchQuery.collectAsStateWithLifecycle()
+    val userCountry by viewModel.userLocationCountry.collectAsStateWithLifecycle()
+    val userCity by viewModel.userLocationCity.collectAsStateWithLifecycle()
+    val selectedProvider by viewModel.selectedRadioProvider.collectAsStateWithLifecycle()
+    val visibleCount by viewModel.visibleDiscoverCount.collectAsStateWithLifecycle()
 
     val savedUrls = remember(localStations) {
         localStations.filter { it.isFavorite }.map { it.url.lowercase() }.toSet()
@@ -561,9 +562,9 @@ fun SyncTab(
     bottomBarOffsetHeightPx: Float
 ) {
     val context = LocalContext.current
-    val allStations by viewModel.stations.collectAsState()
-    val recentHistory by viewModel.recentHistory.collectAsState()
-    val syncStatusMessage by viewModel.syncStatusMessage.collectAsState()
+    val allStations by viewModel.stations.collectAsStateWithLifecycle()
+    val recentHistory by viewModel.recentHistory.collectAsStateWithLifecycle()
+    val syncStatusMessage by viewModel.syncStatusMessage.collectAsStateWithLifecycle()
 
     val favoritesCount = remember(allStations) { allStations.count { it.isFavorite } }
     val customCount = remember(allStations) { allStations.count { it.isCustom } }

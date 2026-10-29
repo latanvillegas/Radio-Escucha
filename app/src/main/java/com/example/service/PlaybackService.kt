@@ -2,11 +2,22 @@ package com.example.service
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.Shader
+import android.net.Uri
 import android.os.Bundle
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Metadata
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -19,6 +30,7 @@ import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
+import com.example.data.MultiSourceRadioClients
 import com.example.data.RadioDatabase
 import com.example.data.RadioRepository
 import com.example.data.RadioStation
@@ -34,14 +46,47 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.ByteArrayOutputStream
+import java.util.concurrent.CopyOnWriteArraySet
+import java.util.concurrent.TimeUnit
+import kotlin.math.abs
 
 class PlaybackService : MediaLibraryService() {
 
     private var exoPlayer: ExoPlayer? = null
+    private var notificationPlayer: RadioNotificationPlayer? = null
     private var mediaLibrarySession: MediaLibrarySession? = null
     private lateinit var repository: RadioRepository
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var serviceSleepTimerJob: Job? = null
+    private var metadataEnrichJob: Job? = null
+    private var stationArtworkJob: Job? = null
+
+    private var currentStationName: String = "OpenRadio"
+    private var currentStationGenre: String = "Radio en Vivo"
+    private var currentStationCountry: String = ""
+    private var currentStationFavicon: String = ""
+    private var currentStationUrl: String = ""
+
+    private var currentSongTitle: String? = null
+    private var currentSongArtist: String? = null
+    private var currentSongAlbum: String? = null
+    private var currentArtworkUrl: String? = null
+    private var currentArtworkBytes: ByteArray? = null
+
+    private val artworkCache = android.util.LruCache<String, ByteArray>(24)
+
+    private val imageHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(6, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .build()
+    }
 
     companion object {
         const val CUSTOM_COMMAND_PREVIOUS = "CUSTOM_COMMAND_PREVIOUS"
@@ -52,10 +97,90 @@ class PlaybackService : MediaLibraryService() {
         const val CUSTOM_COMMAND_SLEEP_TIMER = "CUSTOM_COMMAND_SLEEP_TIMER"
         const val ARG_SLEEP_MINUTES = "ARG_SLEEP_MINUTES"
 
+        const val EXTRA_PARSED_BY_SERVICE = "parsed_by_service"
+        const val EXTRA_TRACK_TITLE = "track_title"
+        const val EXTRA_TRACK_ARTIST = "track_artist"
+        const val EXTRA_TRACK_ALBUM = "track_album"
+        const val EXTRA_TRACK_ARTWORK_URL = "track_artwork_url"
+
         private const val ROOT_ID = "root_stations"
         private const val FOLDER_FAVORITES = "folder_favorites"
         private const val FOLDER_RECENT = "folder_recent"
         private const val FOLDER_ALL = "folder_all"
+    }
+
+    /**
+     * ForwardingPlayer that:
+     * 1. Exposes rich MediaMetadata (Song Title, Artist, Album, Station Name, and embedded Artwork bytes)
+     *    to Android's System Media Notification, Lockscreen, Bluetooth AVRCP, and Android Auto without
+     *    restarting or interrupting the live ExoPlayer stream.
+     * 2. Enables native Previous / Next transport actions in Android 13/14/15 media notifications
+     *    and Bluetooth / steering-wheel controls.
+     */
+    private inner class RadioNotificationPlayer(delegate: Player) : ForwardingPlayer(delegate) {
+        private val registeredListeners = CopyOnWriteArraySet<Player.Listener>()
+        private var customMetadata: MediaMetadata = MediaMetadata.EMPTY
+
+        override fun addListener(listener: Player.Listener) {
+            registeredListeners.add(listener)
+            super.addListener(listener)
+        }
+
+        override fun removeListener(listener: Player.Listener) {
+            registeredListeners.remove(listener)
+            super.removeListener(listener)
+        }
+
+        fun updateNotificationMetadata(newMetadata: MediaMetadata) {
+            customMetadata = newMetadata
+            for (listener in registeredListeners) {
+                listener.onMediaMetadataChanged(newMetadata)
+            }
+        }
+
+        override fun getMediaMetadata(): MediaMetadata {
+            return if (customMetadata != MediaMetadata.EMPTY) customMetadata else super.getMediaMetadata()
+        }
+
+        override fun getAvailableCommands(): Player.Commands {
+            return super.getAvailableCommands()
+                .buildUpon()
+                .add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                .add(Player.COMMAND_SEEK_TO_NEXT)
+                .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                .build()
+        }
+
+        override fun isCommandAvailable(command: Int): Boolean {
+            return when (command) {
+                Player.COMMAND_SEEK_TO_PREVIOUS,
+                Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+                Player.COMMAND_SEEK_TO_NEXT,
+                Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM -> true
+                else -> super.isCommandAvailable(command)
+            }
+        }
+
+        override fun seekToPrevious() {
+            playPreviousStationInService()
+        }
+
+        override fun seekToPreviousMediaItem() {
+            playPreviousStationInService()
+        }
+
+        override fun hasPreviousMediaItem(): Boolean = true
+
+        override fun seekToNext() {
+            playNextStationInService()
+        }
+
+        override fun seekToNextMediaItem() {
+            playNextStationInService()
+        }
+
+        override fun hasNextMediaItem(): Boolean = true
     }
 
     override fun onCreate() {
@@ -73,6 +198,7 @@ class PlaybackService : MediaLibraryService() {
             .setReadTimeoutMs(15000)
             .setAllowCrossProtocolRedirects(true)
             .setUserAgent("OpenRadio/1.2 (Android; Linux)")
+            .setDefaultRequestProperties(mapOf("Icy-MetaData" to "1"))
 
         val dataSourceFactory = DefaultDataSource.Factory(this, httpDataSourceFactory)
         val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
@@ -91,30 +217,73 @@ class PlaybackService : MediaLibraryService() {
             .build()
         exoPlayer = player
 
+        val wrappedPlayer = RadioNotificationPlayer(player)
+        notificationPlayer = wrappedPlayer
+
+        player.addListener(object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                if (mediaItem == null) return
+                val extras = mediaItem.mediaMetadata.extras
+                currentStationName = extras?.getString("station_name")
+                    ?: mediaItem.mediaMetadata.station?.toString()
+                    ?: mediaItem.mediaMetadata.title?.toString()
+                    ?: "OpenRadio"
+                currentStationGenre = extras?.getString("station_genre")
+                    ?: mediaItem.mediaMetadata.subtitle?.toString()
+                    ?: "Radio en Vivo"
+                currentStationCountry = extras?.getString("station_country").orEmpty()
+                currentStationFavicon = extras?.getString("station_favicon")
+                    ?: mediaItem.mediaMetadata.artworkUri?.toString().orEmpty()
+                currentStationUrl = extras?.getString("station_url")
+                    ?: mediaItem.localConfiguration?.uri?.toString().orEmpty()
+
+                currentSongTitle = null
+                currentSongArtist = null
+                currentSongAlbum = null
+                currentArtworkUrl = currentStationFavicon
+
+                // Generate immediate station badge artwork, then fetch real station logo
+                currentArtworkBytes = generateFallbackStationLogoBytes(currentStationName)
+                rebuildAndPublishNotificationMetadata()
+                loadStationFaviconAsync(currentStationName, currentStationFavicon)
+            }
+
+            override fun onMetadata(metadata: Metadata) {
+                val builder = MediaMetadata.Builder()
+                for (i in 0 until metadata.length()) {
+                    metadata.get(i).populateMediaMetadata(builder)
+                }
+                val populated = builder.build()
+                processRawStreamMetadata(
+                    rawTitle = populated.title?.toString(),
+                    rawArtist = populated.artist?.toString(),
+                    rawAlbum = populated.albumTitle?.toString()
+                )
+            }
+
+            override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
+                if (mediaMetadata.extras?.getBoolean(EXTRA_PARSED_BY_SERVICE) == true) return
+                processRawStreamMetadata(
+                    rawTitle = mediaMetadata.title?.toString(),
+                    rawArtist = mediaMetadata.artist?.toString(),
+                    rawAlbum = mediaMetadata.albumTitle?.toString()
+                )
+            }
+        })
+
         val sessionIntent = packageManager.getLaunchIntentForPackage(packageName)
         val sessionActivityPendingIntent = sessionIntent?.let {
             PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_IMMUTABLE)
         }
 
         val prevCommand = SessionCommand(CUSTOM_COMMAND_PREVIOUS, Bundle.EMPTY)
-        val prevButton = CommandButton.Builder()
-            .setSessionCommand(prevCommand)
-            .setDisplayName("Anterior")
-            .setIconResId(android.R.drawable.ic_media_previous)
-            .build()
-
         val nextCommand = SessionCommand(CUSTOM_COMMAND_NEXT, Bundle.EMPTY)
-        val nextButton = CommandButton.Builder()
-            .setSessionCommand(nextCommand)
-            .setDisplayName("Siguiente")
-            .setIconResId(android.R.drawable.ic_media_next)
-            .build()
 
         val favoriteCommand = SessionCommand(CUSTOM_COMMAND_FAVORITE, Bundle.EMPTY)
         val favoriteButton = CommandButton.Builder()
             .setSessionCommand(favoriteCommand)
             .setDisplayName("Favorito")
-            .setIconResId(android.R.drawable.btn_star)
+            .setIconResId(android.R.drawable.btn_star_big_on)
             .build()
 
         val randomCommand = SessionCommand(CUSTOM_COMMAND_RANDOM, Bundle.EMPTY)
@@ -146,9 +315,16 @@ class PlaybackService : MediaLibraryService() {
                     .add(stopCommand)
                     .add(sleepTimerCommand)
                     .build()
+                val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
+                    .add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                    .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                    .add(Player.COMMAND_SEEK_TO_NEXT)
+                    .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                    .build()
                 return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                     .setAvailableSessionCommands(sessionCommands)
-                    .setCustomLayout(ImmutableList.of(prevButton, nextButton, favoriteButton, randomButton, stopButton))
+                    .setAvailablePlayerCommands(playerCommands)
+                    .setCustomLayout(ImmutableList.of(favoriteButton, randomButton, stopButton))
                     .build()
             }
 
@@ -275,11 +451,260 @@ class PlaybackService : MediaLibraryService() {
             }
         }
 
-        val builder = MediaLibrarySession.Builder(this, player, sessionCallback)
+        val builder = MediaLibrarySession.Builder(this, wrappedPlayer, sessionCallback)
         if (sessionActivityPendingIntent != null) {
             builder.setSessionActivity(sessionActivityPendingIntent)
         }
         mediaLibrarySession = builder.build()
+    }
+
+    private fun processRawStreamMetadata(
+        rawTitle: String?,
+        rawArtist: String?,
+        rawAlbum: String?
+    ) {
+        val cleanedRaw = rawTitle?.trim()
+            ?.removePrefix("Now Playing:")
+            ?.removePrefix("NOW PLAYING:")
+            ?.trim()
+
+        if (cleanedRaw.isNullOrBlank() ||
+            cleanedRaw.equals(currentStationName, ignoreCase = true) ||
+            cleanedRaw.equals("unknown", ignoreCase = true) ||
+            cleanedRaw.equals("stream", ignoreCase = true)
+        ) {
+            return
+        }
+
+        var parsedArtist: String? = rawArtist?.trim()?.takeIf {
+            it.isNotBlank() &&
+                    !it.equals(currentStationGenre, ignoreCase = true) &&
+                    !it.equals(currentStationName, ignoreCase = true)
+        }
+        var parsedTitle: String = cleanedRaw
+        var parsedAlbum: String? = rawAlbum?.trim()?.takeIf { it.isNotBlank() }
+
+        val separators = listOf(" - ", " – ", " — ", " / ")
+        val matchedSep = separators.firstOrNull { cleanedRaw.contains(it) }
+        if (matchedSep != null) {
+            val parts = cleanedRaw.split(matchedSep).map { it.trim() }.filter { it.isNotBlank() }
+            if (parts.size >= 2) {
+                if (parsedArtist.isNullOrBlank()) {
+                    parsedArtist = parts[0]
+                }
+                parsedTitle = parts[1]
+                if (parts.size >= 3 && parsedAlbum.isNullOrBlank()) {
+                    parsedAlbum = parts[2]
+                }
+            }
+        }
+
+        val bracketRegex = Regex("^(.*?)\\s*\\[([^]]+)]$").find(parsedTitle)
+        if (bracketRegex != null && parsedAlbum.isNullOrBlank()) {
+            parsedTitle = bracketRegex.groupValues[1].trim()
+            parsedAlbum = bracketRegex.groupValues[2].trim()
+        }
+
+        if (parsedTitle == currentSongTitle && parsedArtist == currentSongArtist && parsedAlbum == currentSongAlbum) {
+            return
+        }
+
+        currentSongTitle = parsedTitle
+        currentSongArtist = parsedArtist
+        currentSongAlbum = parsedAlbum
+        rebuildAndPublishNotificationMetadata()
+
+        // Enrich with iTunes Search API for Album Name, Official Artist, and HD Cover Art Bitmap
+        enrichSongFromItunesInService(parsedTitle, parsedArtist)
+    }
+
+    private fun enrichSongFromItunesInService(title: String, artist: String?) {
+        metadataEnrichJob?.cancel()
+        metadataEnrichJob = serviceScope.launch(Dispatchers.IO) {
+            try {
+                val searchTerm = listOfNotNull(artist, title)
+                    .joinToString(" ")
+                    .replace(Regex("[^\\p{L}\\p{N}\\s-]"), " ")
+                    .trim()
+                if (searchTerm.length < 3) return@launch
+
+                val response = MultiSourceRadioClients.iTunesSearchService.searchSong(term = searchTerm, limit = 1)
+                val match = response.results?.firstOrNull() ?: return@launch
+
+                if (currentSongArtist.isNullOrBlank() && !match.artistName.isNullOrBlank()) {
+                    currentSongArtist = match.artistName
+                }
+                if (!match.collectionName.isNullOrBlank()) {
+                    currentSongAlbum = match.collectionName
+                }
+                val highResArtwork = match.artworkUrl100?.replace("100x100bb", "600x600bb")
+                if (!highResArtwork.isNullOrBlank()) {
+                    currentArtworkUrl = highResArtwork
+                    val downloadedBytes = downloadImageBytes(highResArtwork)
+                    if (downloadedBytes != null) {
+                        currentArtworkBytes = downloadedBytes
+                    }
+                }
+
+                withContext(Dispatchers.Main) {
+                    rebuildAndPublishNotificationMetadata()
+                }
+            } catch (_: Exception) {
+                // Keep parsed ICY metadata and station logo if iTunes lookup fails
+            }
+        }
+    }
+
+    private fun loadStationFaviconAsync(stationName: String, faviconUrl: String) {
+        stationArtworkJob?.cancel()
+        if (faviconUrl.isBlank()) return
+        stationArtworkJob = serviceScope.launch(Dispatchers.IO) {
+            val bytes = downloadImageBytes(faviconUrl)
+            if (bytes != null && currentStationName == stationName && currentArtworkUrl == faviconUrl) {
+                currentArtworkBytes = bytes
+                withContext(Dispatchers.Main) {
+                    rebuildAndPublishNotificationMetadata()
+                }
+            }
+        }
+    }
+
+    private fun rebuildAndPublishNotificationMetadata() {
+        val song = currentSongTitle?.takeIf { it.isNotBlank() }
+        val artist = currentSongArtist?.takeIf { it.isNotBlank() }
+        val album = currentSongAlbum?.takeIf { it.isNotBlank() }
+
+        // Line 1 of Android Media Notification: Song Title (or Station Name if no song yet)
+        val notificationTitle = song ?: currentStationName
+
+        // Line 2 of Android Media Notification: "Artista • Álbum • Emisora" so all 3 are clearly visible
+        val notificationArtistLine = when {
+            artist != null && album != null -> "$artist • $album ($currentStationName)"
+            artist != null -> "$artist • $currentStationName"
+            album != null -> "$album • $currentStationName"
+            currentStationCountry.isNotBlank() -> "$currentStationGenre • $currentStationCountry"
+            else -> currentStationGenre
+        }
+
+        val notificationAlbum = album ?: currentStationName
+
+        val extras = Bundle().apply {
+            putBoolean(EXTRA_PARSED_BY_SERVICE, true)
+            putString("station_name", currentStationName)
+            putString("station_genre", currentStationGenre)
+            putString("station_country", currentStationCountry)
+            putString("station_url", currentStationUrl)
+            putString("station_favicon", currentStationFavicon)
+            putString(EXTRA_TRACK_TITLE, song)
+            putString(EXTRA_TRACK_ARTIST, artist)
+            putString(EXTRA_TRACK_ALBUM, album)
+            putString(EXTRA_TRACK_ARTWORK_URL, currentArtworkUrl)
+        }
+
+        val metadataBuilder = MediaMetadata.Builder()
+            .setTitle(notificationTitle)
+            .setDisplayTitle(notificationTitle)
+            .setArtist(notificationArtistLine)
+            .setAlbumTitle(notificationAlbum)
+            .setAlbumArtist(artist ?: currentStationName)
+            .setStation(currentStationName)
+            .setSubtitle(notificationArtistLine)
+            .setGenre(currentStationGenre)
+            .setExtras(extras)
+            .setIsBrowsable(false)
+            .setIsPlayable(true)
+
+        val artUrl = currentArtworkUrl
+        if (!artUrl.isNullOrBlank()) {
+            metadataBuilder.setArtworkUri(Uri.parse(artUrl))
+        }
+        val artBytes = currentArtworkBytes
+        if (artBytes != null) {
+            metadataBuilder.setArtworkData(artBytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+        }
+
+        notificationPlayer?.updateNotificationMetadata(metadataBuilder.build())
+    }
+
+    private fun downloadImageBytes(url: String): ByteArray? {
+        artworkCache.get(url)?.let { return it }
+        return try {
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Android; OpenRadio/1.2)")
+                .build()
+            imageHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                val rawBytes = response.body?.bytes() ?: return null
+                val decoded = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size) ?: return null
+                val maxDim = 384
+                val bitmap = if (decoded.width > maxDim || decoded.height > maxDim) {
+                    val ratio = minOf(maxDim.toFloat() / decoded.width, maxDim.toFloat() / decoded.height)
+                    val targetW = (decoded.width * ratio).toInt().coerceAtLeast(1)
+                    val targetH = (decoded.height * ratio).toInt().coerceAtLeast(1)
+                    Bitmap.createScaledBitmap(decoded, targetW, targetH, true)
+                } else {
+                    decoded
+                }
+                val stream = ByteArrayOutputStream()
+                bitmap.compress(Bitmap.CompressFormat.PNG, 90, stream)
+                val finalBytes = stream.toByteArray()
+                artworkCache.put(url, finalBytes)
+                finalBytes
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun generateFallbackStationLogoBytes(stationName: String): ByteArray? {
+        return try {
+            val size = 256
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+
+            val palettes = listOf(
+                intArrayOf(Color.parseColor("#6366F1"), Color.parseColor("#A855F7")),
+                intArrayOf(Color.parseColor("#EC4899"), Color.parseColor("#F43F5E")),
+                intArrayOf(Color.parseColor("#0EA5E9"), Color.parseColor("#2563EB")),
+                intArrayOf(Color.parseColor("#10B981"), Color.parseColor("#059669")),
+                intArrayOf(Color.parseColor("#F59E0B"), Color.parseColor("#EA580C"))
+            )
+            val palette = palettes[abs(stationName.hashCode()) % palettes.size]
+
+            val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = LinearGradient(
+                    0f, 0f, size.toFloat(), size.toFloat(),
+                    palette[0], palette[1],
+                    Shader.TileMode.CLAMP
+                )
+            }
+            canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), bgPaint)
+
+            val initials = stationName
+                .split(" ", "-", ".")
+                .filter { it.isNotBlank() }
+                .take(2)
+                .joinToString("") { it.first().uppercaseChar().toString() }
+                .ifBlank { "FM" }
+
+            val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.WHITE
+                textSize = 96f
+                isFakeBoldText = true
+                textAlign = Paint.Align.CENTER
+            }
+            val textBounds = Rect()
+            textPaint.getTextBounds(initials, 0, initials.length, textBounds)
+            val yPos = (size / 2f) - textBounds.exactCenterY()
+            canvas.drawText(initials, size / 2f, yPos, textPaint)
+
+            val out = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.PNG, 95, out)
+            out.toByteArray()
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun buildFolderItem(id: String, title: String, subtitle: String): MediaItem {
@@ -323,7 +748,7 @@ class PlaybackService : MediaLibraryService() {
                     .setStation(station.name)
                     .setSubtitle(station.genre)
                     .setGenre(station.genre)
-                    .setArtworkUri(if (station.faviconUrl.isNotBlank()) android.net.Uri.parse(station.faviconUrl) else null)
+                    .setArtworkUri(if (station.faviconUrl.isNotBlank()) Uri.parse(station.faviconUrl) else null)
                     .setExtras(extras)
                     .setIsBrowsable(false)
                     .setIsPlayable(true)
@@ -389,11 +814,14 @@ class PlaybackService : MediaLibraryService() {
 
     override fun onDestroy() {
         serviceSleepTimerJob?.cancel()
+        metadataEnrichJob?.cancel()
+        stationArtworkJob?.cancel()
         mediaLibrarySession?.run {
             player.release()
             release()
             mediaLibrarySession = null
         }
+        notificationPlayer = null
         exoPlayer = null
         serviceScope.cancel()
         super.onDestroy()

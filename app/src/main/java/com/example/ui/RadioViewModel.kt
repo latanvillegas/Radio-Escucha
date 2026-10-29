@@ -68,6 +68,7 @@ class RadioViewModel(
         KEYWORD
     }
 
+    @androidx.compose.runtime.Immutable
     data class SearchSuggestion(
         val title: String,
         val subtitle: String,
@@ -349,6 +350,20 @@ class RadioViewModel(
             }
 
             override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
+                val extras = mediaMetadata.extras
+                if (extras?.getBoolean(PlaybackService.EXTRA_PARSED_BY_SERVICE) == true) {
+                    val srvTitle = extras.getString(PlaybackService.EXTRA_TRACK_TITLE)
+                    val srvArtist = extras.getString(PlaybackService.EXTRA_TRACK_ARTIST)
+                    val srvAlbum = extras.getString(PlaybackService.EXTRA_TRACK_ALBUM)
+                    val srvArt = extras.getString(PlaybackService.EXTRA_TRACK_ARTWORK_URL)
+                    _currentTrackTitle.value = srvTitle
+                    _currentTrackArtist.value = srvArtist
+                    _currentTrackAlbum.value = srvAlbum
+                    if (!srvArt.isNullOrBlank()) {
+                        _currentTrackArtworkUrl.value = srvArt
+                    }
+                    return
+                }
                 handleIncomingStreamMetadata(
                     rawTitle = mediaMetadata.title?.toString(),
                     rawArtist = mediaMetadata.artist?.toString(),
@@ -359,7 +374,9 @@ class RadioViewModel(
 
             override fun onPlayerError(error: PlaybackException) {
                 val station = _currentStation.value
-                val hasNetwork = networkStatus.value == ConnectivityObserver.Status.Available
+                val currentNet = networkStatus.value
+                val hasNetwork = currentNet == ConnectivityObserver.Status.Available ||
+                    currentNet == ConnectivityObserver.Status.MobileData
                 if (station != null && hasNetwork && retryAttempt < 3) {
                     retryAttempt++
                     val delayMs = retryAttempt * 2500L

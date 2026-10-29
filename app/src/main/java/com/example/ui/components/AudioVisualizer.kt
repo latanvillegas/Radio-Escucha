@@ -16,6 +16,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Composable
 fun MiniVisualizer(
@@ -57,16 +59,21 @@ fun AudioVisualizer(
     barCount: Int = 18,
     color: Color = MaterialTheme.colorScheme.primary
 ) {
-    val transition = rememberInfiniteTransition(label = "visualizer")
-    val animationProgress by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "progress"
-    )
+    val animationProgress = if (isPlaying) {
+        val transition = rememberInfiniteTransition(label = "visualizer")
+        val progress by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1200, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "progress"
+        )
+        progress
+    } else {
+        0f
+    }
 
     Canvas(modifier = modifier) {
         val width = size.width
@@ -77,8 +84,8 @@ fun AudioVisualizer(
         for (i in 0 until barCount) {
             val factor = if (isPlaying) {
                 val angle = (animationProgress * 2 * Math.PI) + (i * 1.5)
-                val baseValue = Math.sin(angle) * 0.45 + 0.55
-                val noise = Math.cos(angle * 1.7 + i) * 0.15
+                val baseValue = sin(angle) * 0.45 + 0.55
+                val noise = cos(angle * 1.7 + i) * 0.15
                 (baseValue + noise).toFloat().coerceIn(0.1f, 1.0f)
             } else {
                 0.08f
@@ -86,7 +93,7 @@ fun AudioVisualizer(
             val barHeight = height * factor
             val x = i * barWidth * 2
             val y = height - barHeight
-            
+
             drawRoundRect(
                 color = color,
                 topLeft = Offset(x, y),

@@ -12,19 +12,30 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.request.CachePolicy
 import coil.request.ImageRequest
+import kotlin.math.abs
+
+private val FallbackGradients = listOf(
+    listOf(Color(0xFF6366F1), Color(0xFFA855F7)),
+    listOf(Color(0xFFEC4899), Color(0xFFF43F5E)),
+    listOf(Color(0xFF0EA5E9), Color(0xFF2563EB)),
+    listOf(Color(0xFF10B981), Color(0xFF059669)),
+    listOf(Color(0xFFF59E0B), Color(0xFFEA580C))
+)
 
 @Composable
 fun StationLogo(
@@ -34,60 +45,65 @@ fun StationLogo(
     modifier: Modifier = Modifier,
     contentDescription: String? = null
 ) {
-    val candidateUrls = remember(faviconUrl, stationUrl) {
-        val list = mutableListOf<String>()
-        if (faviconUrl.isNotBlank()) list.add(faviconUrl)
-        try {
-            val uri = android.net.Uri.parse(stationUrl)
-            val host = uri.host
-            if (!host.isNullOrBlank()) {
-                list.add("https://www.google.com/s2/favicons?domain=$host&sz=128")
-                list.add("https://icons.duckduckgo.com/ip3/$host.ico")
-            }
-        } catch (_: Exception) {}
-        list
+    val cleanFavicon = remember(faviconUrl) { faviconUrl.trim() }
+    var loadFailed by remember(cleanFavicon) { mutableStateOf(cleanFavicon.isEmpty()) }
+
+    val gradientColors = remember(stationName) {
+        FallbackGradients[abs(stationName.hashCode()) % FallbackGradients.size]
+    }
+    val initials = remember(stationName) {
+        stationName
+            .split(" ", "-", ".")
+            .filter { it.isNotBlank() && it[0].isLetterOrDigit() }
+            .take(2)
+            .joinToString("") { it.first().uppercaseChar().toString() }
+            .ifBlank { stationName.trim().take(2).uppercase() }
     }
 
-    var currentAttemptIndex by remember(candidateUrls) { mutableIntStateOf(0) }
-    var hasErrorAll by remember(candidateUrls) { mutableStateOf(candidateUrls.isEmpty()) }
+    val context = LocalContext.current
+    val imageRequest = remember(cleanFavicon, context) {
+        if (cleanFavicon.isNotEmpty()) {
+            ImageRequest.Builder(context)
+                .data(cleanFavicon)
+                .size(512)
+                .memoryCacheKey(cleanFavicon)
+                .diskCacheKey(cleanFavicon)
+                .memoryCachePolicy(CachePolicy.ENABLED)
+                .diskCachePolicy(CachePolicy.ENABLED)
+                .crossfade(200)
+                .build()
+        } else null
+    }
 
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
+            .background(Brush.linearGradient(gradientColors)),
         contentAlignment = Alignment.Center
     ) {
-        if (!hasErrorAll && currentAttemptIndex < candidateUrls.size) {
+        if (!loadFailed && imageRequest != null) {
             AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(candidateUrls[currentAttemptIndex])
-                    .crossfade(true)
-                    .build(),
+                model = imageRequest,
                 contentDescription = contentDescription ?: stationName,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentScale = ContentScale.Crop,
-                onError = {
-                    if (currentAttemptIndex + 1 >= candidateUrls.size) {
-                        hasErrorAll = true
-                    } else {
-                        currentAttemptIndex++
-                    }
-                }
+                onError = { loadFailed = true }
             )
         } else {
-            val initial = stationName.trim().take(1).uppercase()
-            if (initial.isNotEmpty() && initial[0].isLetterOrDigit()) {
+            if (initials.isNotEmpty()) {
                 Text(
-                    text = initial,
+                    text = initials,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White
                 )
             } else {
                 Icon(
                     imageVector = Icons.Default.Radio,
                     contentDescription = contentDescription,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = Color.White,
                     modifier = Modifier.size(24.dp)
                 )
             }

@@ -19,7 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,16 +66,21 @@ fun FullPlayerScreen(
     val isPlaying = playbackStatus == PlaybackStatus.PLAYING
     val isBuffering = playbackStatus == PlaybackStatus.BUFFERING
 
-    val infiniteTransition = rememberInfiniteTransition(label = "rotation")
-    val rotationAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(14000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "vinyl_rotation"
-    )
+    val rotationAngle = if (isPlaying) {
+        val infiniteTransition = rememberInfiniteTransition(label = "rotation")
+        val angle by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(14000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "vinyl_rotation"
+        )
+        angle
+    } else {
+        0f
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -145,10 +150,10 @@ fun FullPlayerScreen(
                 }
             }
 
-            // Central Artwork / Vinyl
+            // Central Circular Artwork (Larger, without center dot)
             Box(
                 modifier = Modifier
-                    .size(230.dp)
+                    .size(284.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
@@ -158,21 +163,15 @@ fun FullPlayerScreen(
                     stationUrl = currentStation.url,
                     faviconUrl = currentTrackArtworkUrl ?: currentStation.faviconUrl,
                     modifier = Modifier
-                        .size(214.dp)
+                        .size(272.dp)
                         .clip(CircleShape)
-                        .then(if (isPlaying) Modifier.rotate(rotationAngle) else Modifier)
-                )
-
-                // Vinyl center spindle hole
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.background)
+                        .graphicsLayer {
+                            rotationZ = if (isPlaying) rotationAngle else 0f
+                        }
                 )
             }
 
-            // Track metadata: Station + Song, Artist, Album Card
+            // Track metadata: Centered Station + Centered Song, Artist, Album
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -199,12 +198,14 @@ fun FullPlayerScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        // Nombre de la Canción
+                        // Nombre de la Canción (Centrado)
                         Row(
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.MusicNote,
@@ -212,80 +213,66 @@ fun FullPlayerScreen(
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(18.dp)
                             )
-                            Text(
-                                text = "Canción:",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = currentTrackTitle?.takeIf { it.isNotBlank() } ?: "Transmisión en directo",
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
                                 maxLines = 1,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .basicMarquee()
+                                modifier = Modifier.basicMarquee()
                             )
                         }
 
-                        // Artista
+                        // Artista (Centrado)
                         Row(
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Person,
                                 contentDescription = "Artista",
                                 tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            val artistLabel = currentTrackArtist?.takeIf { it.isNotBlank() }
+                                ?: currentStation.genre.ifBlank { "Emisora en vivo" }
                             Text(
-                                text = "Artista:",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = currentTrackArtist?.takeIf { it.isNotBlank() }
-                                    ?: currentStation.genre.ifBlank { "Emisora en vivo" },
+                                text = "Artista: $artistLabel",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onBackground,
                                 fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.Center,
                                 maxLines = 1,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .basicMarquee()
+                                modifier = Modifier.basicMarquee()
                             )
                         }
 
-                        // Álbum
+                        // Álbum (Centrado)
                         Row(
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Album,
                                 contentDescription = "Álbum",
                                 tint = MaterialTheme.colorScheme.tertiary,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            val albumLabel = currentTrackAlbum?.takeIf { it.isNotBlank() }
+                                ?: currentStation.country.ifBlank { "Radio Online" }
                             Text(
-                                text = "Álbum:",
-                                style = MaterialTheme.typography.labelMedium,
+                                text = "Álbum: $albumLabel",
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = currentTrackAlbum?.takeIf { it.isNotBlank() }
-                                    ?: currentStation.country.ifBlank { "Radio Online" },
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
                                 maxLines = 1,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .basicMarquee()
+                                modifier = Modifier.basicMarquee()
                             )
                         }
                     }

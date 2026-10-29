@@ -31,7 +31,7 @@ class RadioRepository(
     }
 
     suspend fun insertHistory(station: RadioStation) {
-        playbackHistoryDao.insertHistoryEntry(
+        playbackHistoryDao.recordStationPlay(
             PlaybackHistory(
                 stationId = station.id.toLong(),
                 stationName = station.name,

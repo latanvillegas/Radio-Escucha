@@ -14,8 +14,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,16 +60,21 @@ fun PlaybackDashboard(
     val isPlaying = playbackStatus == PlaybackStatus.PLAYING
     val isBuffering = playbackStatus == PlaybackStatus.BUFFERING
 
-    val infiniteTransition = rememberInfiniteTransition(label = "rotation")
-    val rotationAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(12000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "turntable_rotation"
-    )
+    val rotationAngle = if (isPlaying) {
+        val infiniteTransition = rememberInfiniteTransition(label = "rotation")
+        val angle by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(12000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "turntable_rotation"
+        )
+        angle
+    } else {
+        0f
+    }
 
     Card(
         modifier = Modifier
@@ -217,7 +222,9 @@ fun PlaybackDashboard(
                             faviconUrl = currentTrackArtworkUrl ?: currentStation.faviconUrl,
                             modifier = Modifier
                                 .fillMaxSize()
-                                .then(if (isPlaying) Modifier.rotate(rotationAngle) else Modifier)
+                                .graphicsLayer {
+                                    rotationZ = if (isPlaying) rotationAngle else 0f
+                                }
                         )
                     } else {
                         Box(
