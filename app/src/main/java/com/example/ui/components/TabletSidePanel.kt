@@ -48,6 +48,8 @@ fun TabletSidePanel(
     modifier: Modifier = Modifier
 ) {
     val dateFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val favoritesCount = remember(allStations) { allStations.count { it.isFavorite } }
+    val stationsById = remember(allStations) { allStations.associateBy { it.id.toLong() } }
 
     Column(
         modifier = modifier
@@ -107,7 +109,7 @@ fun TabletSidePanel(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "${allStations.count { it.isFavorite }}",
+                            text = "$favoritesCount",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.secondary
@@ -156,7 +158,7 @@ fun TabletSidePanel(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 recentHistory.take(8).forEach { historyItem ->
-                    val station = allStations.find { it.id.toLong() == historyItem.stationId }
+                    val station = stationsById[historyItem.stationId]
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()

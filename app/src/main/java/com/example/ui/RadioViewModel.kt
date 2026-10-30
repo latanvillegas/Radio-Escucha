@@ -42,6 +42,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.Normalizer
 import java.util.Locale
 
@@ -779,83 +780,91 @@ class RadioViewModel(
     fun loadOnlineStationsForCurrentProvider() {
         val provider = _selectedRadioProvider.value
         val query = _radioBrowserSearchQuery.value.trim()
+        val cacheQueryKey = query.ifBlank { "top" }
         val appContext = getApplication<Application>()
 
-        // 1. Instant Stale-While-Revalidate cache load
-        val cached = DiscoverCacheManager.getCachedStations(appContext, provider, query.ifBlank { "top" })
-        if (cached.isNotEmpty()) {
-            _radioBrowserStations.value = cached
+        // 1. Instant 0ms RAM cache hit if available
+        DiscoverCacheManager.getMemoryCachedStations(provider, cacheQueryKey)?.let { ramCached ->
+            if (ramCached.isNotEmpty()) {
+                _radioBrowserStations.value = ramCached
+            }
         }
 
-        // 2. Network refresh by provider
+        // 2. Disk cache fallback + Network refresh by provider
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
+            val cached = DiscoverCacheManager.getCachedStationsAsync(appContext, provider, cacheQueryKey)
+            if (cached.isNotEmpty() && _radioBrowserStations.value.isEmpty()) {
+                _radioBrowserStations.value = cached
+            }
             _radioBrowserLoading.value = cached.isEmpty()
             _radioBrowserError.value = null
             try {
-                val freshStations: List<RadioStation> = when (provider) {
-                    "SomaFM" -> {
-                        val channels = MultiSourceRadioClients.somaFmService.getChannels().channels.orEmpty()
-                        val mapped = channels.map { it.toRadioStation() }
-                        if (query.isNotBlank()) {
-                            mapped.filter {
-                                it.name.contains(query, ignoreCase = true) ||
-                                        it.genre.contains(query, ignoreCase = true)
-                            }
-                        } else mapped
-                    }
-                    "iHeartRadio" -> {
-                        val response = MultiSourceRadioClients.iHeartService.getLiveStations(
-                            keywords = query.ifBlank { "music" },
-                            limit = 40
-                        )
-                        val list = (response.hits ?: response.items).orEmpty().map { it.toRadioStation() }
-                        list.ifEmpty { MultiSourceRadioClients.fallbackFmStreamList }
-                    }
-                    "FMStream" -> {
-                        val list = try {
-                            MultiSourceRadioClients.fmStreamService.searchFmStream(query = query.ifBlank { "pop" })
-                                .map { it.toRadioStation() }
-                        } catch (_: Exception) {
-                            emptyList()
+                val freshStations: List<RadioStation> = withContext(Dispatchers.IO) {
+                    when (provider) {
+                        "SomaFM" -> {
+                            val channels = MultiSourceRadioClients.somaFmService.getChannels().channels.orEmpty()
+                            val mapped = channels.map { it.toRadioStation() }
+                            if (query.isNotBlank()) {
+                                mapped.filter {
+                                    it.name.contains(query, ignoreCase = true) ||
+                                            it.genre.contains(query, ignoreCase = true)
+                                }
+                            } else mapped
                         }
-                        val fallback = MultiSourceRadioClients.fallbackFmStreamList
-                        val base = list.ifEmpty { fallback }
-                        if (query.isNotBlank()) {
-                            base.filter {
-                                it.name.contains(query, ignoreCase = true) ||
-                                        it.genre.contains(query, ignoreCase = true) ||
-                                        it.country.contains(query, ignoreCase = true)
-                            }.ifEmpty { base }
-                        } else base
-                    }
-                    "Curadas" -> {
-                        val cajamarcaCurated = RadioRepository.getDefaultStations()
-                            .filter { it.region.equals("Cajamarca", ignoreCase = true) }
-                            .mapIndexed { idx, s -> s.copy(id = 9500 + idx) }
-                        val curated = cajamarcaCurated + MultiSourceRadioClients.fallbackGitHubCuratedList + MultiSourceRadioClients.fallbackFmStreamList
-                        if (query.isNotBlank()) {
-                            curated.filter {
-                                it.name.contains(query, ignoreCase = true) ||
-                                        it.genre.contains(query, ignoreCase = true) ||
-                                        it.country.contains(query, ignoreCase = true) ||
-                                        it.region.contains(query, ignoreCase = true) ||
-                                        it.province.contains(query, ignoreCase = true) ||
-                                        it.district.contains(query, ignoreCase = true)
+                        "iHeartRadio" -> {
+                            val response = MultiSourceRadioClients.iHeartService.getLiveStations(
+                                keywords = query.ifBlank { "music" },
+                                limit = 40
+                            )
+                            val list = (response.hits ?: response.items).orEmpty().map { it.toRadioStation() }
+                            list.ifEmpty { MultiSourceRadioClients.fallbackFmStreamList }
+                        }
+                        "FMStream" -> {
+                            val list = try {
+                                MultiSourceRadioClients.fmStreamService.searchFmStream(query = query.ifBlank { "pop" })
+                                    .map { it.toRadioStation() }
+                            } catch (_: Exception) {
+                                emptyList()
                             }
-                        } else curated
-                    }
-                    else -> {
-                        if (query.isBlank()) {
-                            RadioBrowserApiClient.service.getTopVoteStations(limit = 60).map { it.toRadioStation() }
-                        } else {
-                            RadioBrowserApiClient.service.searchStations(name = query, limit = 60).map { it.toRadioStation() }
+                            val fallback = MultiSourceRadioClients.fallbackFmStreamList
+                            val base = list.ifEmpty { fallback }
+                            if (query.isNotBlank()) {
+                                base.filter {
+                                    it.name.contains(query, ignoreCase = true) ||
+                                            it.genre.contains(query, ignoreCase = true) ||
+                                            it.country.contains(query, ignoreCase = true)
+                                }.ifEmpty { base }
+                            } else base
+                        }
+                        "Curadas" -> {
+                            val cajamarcaCurated = RadioRepository.getDefaultStations()
+                                .filter { it.region.equals("Cajamarca", ignoreCase = true) }
+                                .mapIndexed { idx, s -> s.copy(id = 9500 + idx) }
+                            val curated = cajamarcaCurated + MultiSourceRadioClients.fallbackGitHubCuratedList + MultiSourceRadioClients.fallbackFmStreamList
+                            if (query.isNotBlank()) {
+                                curated.filter {
+                                    it.name.contains(query, ignoreCase = true) ||
+                                            it.genre.contains(query, ignoreCase = true) ||
+                                            it.country.contains(query, ignoreCase = true) ||
+                                            it.region.contains(query, ignoreCase = true) ||
+                                            it.province.contains(query, ignoreCase = true) ||
+                                            it.district.contains(query, ignoreCase = true)
+                                }
+                            } else curated
+                        }
+                        else -> {
+                            if (query.isBlank()) {
+                                RadioBrowserApiClient.service.getTopVoteStations(limit = 60).map { it.toRadioStation() }
+                            } else {
+                                RadioBrowserApiClient.service.searchStations(name = query, limit = 60).map { it.toRadioStation() }
+                            }
                         }
                     }
                 }
                 if (freshStations.isNotEmpty()) {
                     _radioBrowserStations.value = freshStations
-                    DiscoverCacheManager.saveCachedStations(appContext, provider, query.ifBlank { "top" }, freshStations)
+                    DiscoverCacheManager.saveCachedStationsAsync(appContext, provider, cacheQueryKey, freshStations)
                 } else if (cached.isEmpty()) {
                     _radioBrowserStations.value = emptyList()
                 }
@@ -888,18 +897,23 @@ class RadioViewModel(
         _radioBrowserSearchQuery.value = ""
         _visibleDiscoverCount.value = 25
         val appContext = getApplication<Application>()
-        val cached = DiscoverCacheManager.getCachedStations(appContext, "RadioBrowser", "top_voted")
-        if (cached.isNotEmpty()) {
-            _radioBrowserStations.value = cached
+        DiscoverCacheManager.getMemoryCachedStations("RadioBrowser", "top_voted")?.let {
+            if (it.isNotEmpty()) _radioBrowserStations.value = it
         }
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
+            val cached = DiscoverCacheManager.getCachedStationsAsync(appContext, "RadioBrowser", "top_voted")
+            if (cached.isNotEmpty()) {
+                _radioBrowserStations.value = cached
+            }
             _radioBrowserLoading.value = cached.isEmpty()
             _radioBrowserError.value = null
             try {
-                val results = RadioBrowserApiClient.service.getTopVoteStations(limit = 60).map { it.toRadioStation() }
+                val results = withContext(Dispatchers.IO) {
+                    RadioBrowserApiClient.service.getTopVoteStations(limit = 60).map { it.toRadioStation() }
+                }
                 _radioBrowserStations.value = results
-                DiscoverCacheManager.saveCachedStations(appContext, "RadioBrowser", "top_voted", results)
+                DiscoverCacheManager.saveCachedStationsAsync(appContext, "RadioBrowser", "top_voted", results)
             } catch (e: Exception) {
                 if (_radioBrowserStations.value.isEmpty()) {
                     _radioBrowserError.value = "Error al cargar estaciones populares"
@@ -914,18 +928,23 @@ class RadioViewModel(
         _selectedRadioProvider.value = "RadioBrowser"
         _visibleDiscoverCount.value = 25
         val appContext = getApplication<Application>()
-        val cached = DiscoverCacheManager.getCachedStations(appContext, "RadioBrowser", "top_clicked")
-        if (cached.isNotEmpty()) {
-            _radioBrowserStations.value = cached
+        DiscoverCacheManager.getMemoryCachedStations("RadioBrowser", "top_clicked")?.let {
+            if (it.isNotEmpty()) _radioBrowserStations.value = it
         }
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
+            val cached = DiscoverCacheManager.getCachedStationsAsync(appContext, "RadioBrowser", "top_clicked")
+            if (cached.isNotEmpty()) {
+                _radioBrowserStations.value = cached
+            }
             _radioBrowserLoading.value = cached.isEmpty()
             _radioBrowserError.value = null
             try {
-                val results = RadioBrowserApiClient.service.getTopClickStations(limit = 60).map { it.toRadioStation() }
+                val results = withContext(Dispatchers.IO) {
+                    RadioBrowserApiClient.service.getTopClickStations(limit = 60).map { it.toRadioStation() }
+                }
                 _radioBrowserStations.value = results
-                DiscoverCacheManager.saveCachedStations(appContext, "RadioBrowser", "top_clicked", results)
+                DiscoverCacheManager.saveCachedStationsAsync(appContext, "RadioBrowser", "top_clicked", results)
             } catch (e: Exception) {
                 if (_radioBrowserStations.value.isEmpty()) {
                     _radioBrowserError.value = "Error al cargar estaciones en tendencia"
@@ -941,18 +960,23 @@ class RadioViewModel(
         _visibleDiscoverCount.value = 25
         val appContext = getApplication<Application>()
         val cacheKey = "tag_${tag.trim().lowercase()}"
-        val cached = DiscoverCacheManager.getCachedStations(appContext, "RadioBrowser", cacheKey)
-        if (cached.isNotEmpty()) {
-            _radioBrowserStations.value = cached
+        DiscoverCacheManager.getMemoryCachedStations("RadioBrowser", cacheKey)?.let {
+            if (it.isNotEmpty()) _radioBrowserStations.value = it
         }
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
+            val cached = DiscoverCacheManager.getCachedStationsAsync(appContext, "RadioBrowser", cacheKey)
+            if (cached.isNotEmpty()) {
+                _radioBrowserStations.value = cached
+            }
             _radioBrowserLoading.value = cached.isEmpty()
             _radioBrowserError.value = null
             try {
-                val results = RadioBrowserApiClient.service.searchStations(tag = tag.trim(), limit = 60).map { it.toRadioStation() }
+                val results = withContext(Dispatchers.IO) {
+                    RadioBrowserApiClient.service.searchStations(tag = tag.trim(), limit = 60).map { it.toRadioStation() }
+                }
                 _radioBrowserStations.value = results
-                DiscoverCacheManager.saveCachedStations(appContext, "RadioBrowser", cacheKey, results)
+                DiscoverCacheManager.saveCachedStationsAsync(appContext, "RadioBrowser", cacheKey, results)
             } catch (e: Exception) {
                 if (_radioBrowserStations.value.isEmpty()) {
                     _radioBrowserError.value = "Error al cargar emisoras por género"
@@ -968,18 +992,23 @@ class RadioViewModel(
         _visibleDiscoverCount.value = 25
         val appContext = getApplication<Application>()
         val cacheKey = "country_${country.trim().lowercase()}"
-        val cached = DiscoverCacheManager.getCachedStations(appContext, "RadioBrowser", cacheKey)
-        if (cached.isNotEmpty()) {
-            _radioBrowserStations.value = cached
+        DiscoverCacheManager.getMemoryCachedStations("RadioBrowser", cacheKey)?.let {
+            if (it.isNotEmpty()) _radioBrowserStations.value = it
         }
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
+            val cached = DiscoverCacheManager.getCachedStationsAsync(appContext, "RadioBrowser", cacheKey)
+            if (cached.isNotEmpty()) {
+                _radioBrowserStations.value = cached
+            }
             _radioBrowserLoading.value = cached.isEmpty()
             _radioBrowserError.value = null
             try {
-                val results = RadioBrowserApiClient.service.searchStations(country = country.trim(), limit = 60).map { it.toRadioStation() }
+                val results = withContext(Dispatchers.IO) {
+                    RadioBrowserApiClient.service.searchStations(country = country.trim(), limit = 60).map { it.toRadioStation() }
+                }
                 _radioBrowserStations.value = results
-                DiscoverCacheManager.saveCachedStations(appContext, "RadioBrowser", cacheKey, results)
+                DiscoverCacheManager.saveCachedStationsAsync(appContext, "RadioBrowser", cacheKey, results)
             } catch (e: Exception) {
                 if (_radioBrowserStations.value.isEmpty()) {
                     _radioBrowserError.value = "Error al cargar emisoras por país"

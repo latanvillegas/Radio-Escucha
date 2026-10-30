@@ -41,14 +41,23 @@ fun MiniVisualizer(
         label = "h3"
     )
 
-    Row(
-        modifier = modifier.size(20.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.Bottom
-    ) {
-        Box(modifier = Modifier.weight(1f).fillMaxHeight(h1).background(color).clip(RoundedCornerShape(1.dp)))
-        Box(modifier = Modifier.weight(1f).fillMaxHeight(h2).background(color).clip(RoundedCornerShape(1.dp)))
-        Box(modifier = Modifier.weight(1f).fillMaxHeight(h3).background(color).clip(RoundedCornerShape(1.dp)))
+    Canvas(modifier = modifier.size(20.dp)) {
+        val spacing = 2.dp.toPx()
+        val barWidth = (size.width - spacing * 2f) / 3f
+        val radius = CornerRadius(barWidth / 2f, barWidth / 2f)
+        val heights = floatArrayOf(h1, h2, h3)
+
+        for (i in 0..2) {
+            val barHeight = (size.height * heights[i]).coerceAtLeast(2f)
+            val left = i * (barWidth + spacing)
+            val top = size.height - barHeight
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(left, top),
+                size = Size(barWidth, barHeight),
+                cornerRadius = radius
+            )
+        }
     }
 }
 

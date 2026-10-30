@@ -77,7 +77,8 @@ fun NavigationTabSwitcher(
             currentStation = currentStation,
             playbackStatus = playbackStatus,
             onShare = onShare,
-            bottomBarOffsetHeightPx = bottomBarOffsetHeightPx
+            bottomBarOffsetHeightPx = bottomBarOffsetHeightPx,
+            nestedScrollConnection = nestedScrollConnection
         )
         2 -> LibraryTab(
             allStations = filteredStations,
@@ -85,7 +86,8 @@ fun NavigationTabSwitcher(
             currentStation = currentStation,
             playbackStatus = playbackStatus,
             viewModel = viewModel,
-            onShare = onShare
+            onShare = onShare,
+            nestedScrollConnection = nestedScrollConnection
         )
         3 -> SyncTab(
             viewModel = viewModel,
@@ -115,11 +117,19 @@ fun HomeTab(
             .fillMaxSize()
             .nestedScroll(nestedScrollConnection)
     ) {
-        // Search bar
+        // Search bar (strictly single-line placeholder so it never wraps to 2 lines on Redmi A2)
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchQueryChange,
-            placeholder = { Text("Buscar por nombre, país o género...") },
+            placeholder = {
+                Text(
+                    text = "Buscar por nombre, país o género...",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            textStyle = MaterialTheme.typography.bodyMedium,
             leadingIcon = {
                 Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             },
@@ -131,10 +141,10 @@ fun HomeTab(
                 }
             },
             singleLine = true,
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(14.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 8.dp)
+                .padding(bottom = 4.dp)
                 .testTag("home_search_input"),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
@@ -154,16 +164,16 @@ fun HomeTab(
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(genresList) { genre ->
                 val isSelected = genre == selectedGenre
                 FilterChip(
                     selected = isSelected,
                     onClick = { onGenreSelect(genre) },
-                    label = { Text(genre) },
-                    shape = RoundedCornerShape(20.dp),
+                    label = { Text(genre, style = MaterialTheme.typography.labelMedium) },
+                    shape = RoundedCornerShape(18.dp),
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primary,
                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary
@@ -172,7 +182,7 @@ fun HomeTab(
             }
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         StationsList(
             filteredStations = filteredStations,
@@ -193,7 +203,8 @@ fun DiscoverTab(
     currentStation: RadioStation?,
     playbackStatus: PlaybackStatus,
     onShare: (RadioStation) -> Unit,
-    bottomBarOffsetHeightPx: Float
+    bottomBarOffsetHeightPx: Float,
+    nestedScrollConnection: NestedScrollConnection? = null
 ) {
     val onlineStations by viewModel.radioBrowserStations.collectAsStateWithLifecycle()
     val localStations by viewModel.stations.collectAsStateWithLifecycle()
@@ -214,14 +225,23 @@ fun DiscoverTab(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .then(if (nestedScrollConnection != null) Modifier.nestedScroll(nestedScrollConnection) else Modifier)
+            .padding(top = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         // Search Input
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { viewModel.searchRadioBrowser(it) },
-            placeholder = { Text("Buscar en ${selectedProvider}...") },
+            placeholder = {
+                Text(
+                    text = "Buscar en ${selectedProvider}...",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            textStyle = MaterialTheme.typography.bodyMedium,
             leadingIcon = {
                 Icon(Icons.Default.Public, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             },
@@ -233,7 +253,7 @@ fun DiscoverTab(
                 }
             },
             singleLine = true,
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(14.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("discover_search_input"),
@@ -422,14 +442,17 @@ fun LibraryTab(
     currentStation: RadioStation?,
     playbackStatus: PlaybackStatus,
     viewModel: RadioViewModel,
-    onShare: (RadioStation) -> Unit
+    onShare: (RadioStation) -> Unit,
+    nestedScrollConnection: NestedScrollConnection? = null
 ) {
     var selectedSection by remember { mutableStateOf(0) }
     val favorites = remember(allStations) { allStations.filter { it.isFavorite } }
 
     Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .then(if (nestedScrollConnection != null) Modifier.nestedScroll(nestedScrollConnection) else Modifier),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // Section selector
         TabRow(

@@ -120,10 +120,17 @@ fun RadioApp(
     val bottomBarHeightPx = with(density) { bottomBarHeight.toPx() }
     var bottomBarOffsetHeightPx by remember { mutableStateOf(0f) }
 
+    var isDashboardCompact by remember { mutableStateOf(false) }
+
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 val delta = available.y
+
+                // Auto-collapse dashboard into compact mini-player when scrolling down the list
+                if (delta < -12f && !isDashboardCompact) {
+                    isDashboardCompact = true
+                }
 
                 val newTopOffset = topBarOffsetHeightPx + delta
                 topBarOffsetHeightPx = newTopOffset.coerceIn(-topBarHeightPx, 0f)
@@ -155,6 +162,13 @@ fun RadioApp(
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val isTablet = maxWidth >= 600.dp
+        val isCompactScreenHeight = maxHeight < 780.dp
+
+        LaunchedEffect(isCompactScreenHeight) {
+            if (isCompactScreenHeight) {
+                isDashboardCompact = true
+            }
+        }
 
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -261,12 +275,11 @@ fun RadioApp(
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier
                             .testTag("add_radio_fab")
-                            .offset { IntOffset(0, bottomBarOffsetHeightPx.roundToInt()) }
                     ) {
                         Icon(
                             Icons.Default.Add,
                             contentDescription = "Agregar radio",
-                            modifier = Modifier.size(28.dp * iconScale)
+                            modifier = Modifier.size(26.dp * iconScale)
                         )
                     }
                 }
@@ -275,10 +288,7 @@ fun RadioApp(
                 if (!isTablet) {
                     NavigationBar(
                         containerColor = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 0.dp,
-                        modifier = Modifier
-                            .height(bottomBarHeight)
-                            .offset { IntOffset(0, bottomBarOffsetHeightPx.roundToInt()) }
+                        tonalElevation = 0.dp
                     ) {
                         val navItems = listOf(
                             Triple(Icons.Filled.Home, Icons.Outlined.Home, "Inicio"),
@@ -469,16 +479,16 @@ fun RadioApp(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = innerPadding.calculateTopPadding())
+                        .padding(innerPadding)
                         .background(MaterialTheme.colorScheme.background)
                 ) {
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
+                            .padding(horizontal = 12.dp)
                     ) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
                         PlaybackDashboard(
                             currentStation = currentStation,
@@ -491,6 +501,8 @@ fun RadioApp(
                             errorMessage = errorMessage,
                             sleepSecondsLeft = sleepSecondsLeft,
                             networkStatus = networkStatus,
+                            isCompact = isDashboardCompact,
+                            onToggleCompact = { isDashboardCompact = !isDashboardCompact },
                             onTogglePlay = { viewModel.togglePlayPause() },
                             onStopPlayback = { viewModel.stopPlayback() },
                             onPreviousStation = { viewModel.playPreviousStation() },
@@ -502,7 +514,7 @@ fun RadioApp(
                             onOpenFullScreen = { showFullPlayer = true }
                         )
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         NavigationTabSwitcher(
                             activeTab = activeTab,

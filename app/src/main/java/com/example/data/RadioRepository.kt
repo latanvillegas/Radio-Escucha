@@ -61,6 +61,8 @@ class RadioRepository(
         }
 
         val refreshedCurrent = radioDao.getAllStations().first()
+        val missingToInsert = mutableListOf<RadioStation>()
+
         for (def in defaults) {
             val existing = refreshedCurrent.find {
                 it.name.equals(def.name, ignoreCase = true) &&
@@ -70,7 +72,7 @@ class RadioRepository(
             }
 
             if (existing == null) {
-                radioDao.insertStation(def)
+                missingToInsert.add(def)
             } else if (
                 (existing.faviconUrl.isBlank() && def.faviconUrl.isNotBlank()) ||
                 (existing.province.isBlank() && def.province.isNotBlank()) ||
@@ -88,6 +90,10 @@ class RadioRepository(
                     )
                 )
             }
+        }
+
+        if (missingToInsert.isNotEmpty()) {
+            radioDao.insertStations(missingToInsert)
         }
     }
 

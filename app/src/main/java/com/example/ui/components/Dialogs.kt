@@ -375,42 +375,6 @@ fun FullPlayerScreen(
                         )
                     }
                 }
-
-                // Volume Bar
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        imageVector = if (volume == 0f) Icons.Default.VolumeOff else Icons.Default.VolumeDown,
-                        contentDescription = "Mute",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .size(22.dp)
-                            .clickable { onVolumeChange(0f) }
-                    )
-
-                    Slider(
-                        value = volume,
-                        onValueChange = onVolumeChange,
-                        valueRange = 0f..1f,
-                        modifier = Modifier.weight(1f),
-                        colors = SliderDefaults.colors(
-                            thumbColor = MaterialTheme.colorScheme.primary,
-                            activeTrackColor = MaterialTheme.colorScheme.primary
-                        )
-                    )
-
-                    Icon(
-                        imageVector = Icons.Default.VolumeUp,
-                        contentDescription = "Máximo volumen",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .size(22.dp)
-                            .clickable { onVolumeChange(1f) }
-                    )
-                }
             }
         }
     }

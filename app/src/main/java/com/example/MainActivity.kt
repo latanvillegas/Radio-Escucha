@@ -9,9 +9,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.collectAsState
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -55,9 +55,9 @@ class MainActivity : ComponentActivity() {
         
         setContent {
             val settingsViewModel: SettingsViewModel = viewModel(factory = settingsFactory)
-            val appTheme by settingsViewModel.appTheme.collectAsState()
-            val appFontSize by settingsViewModel.appFontSize.collectAsState()
-            val appIconSize by settingsViewModel.appIconSize.collectAsState()
+            val appTheme by settingsViewModel.appTheme.collectAsStateWithLifecycle()
+            val appFontSize by settingsViewModel.appFontSize.collectAsStateWithLifecycle()
+            val appIconSize by settingsViewModel.appIconSize.collectAsStateWithLifecycle()
             
             MyApplicationTheme(
                 appTheme = appTheme,

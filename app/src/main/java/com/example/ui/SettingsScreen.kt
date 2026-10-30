@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.AppFontSize
 import com.example.data.AppIconSize
 import com.example.data.AppTheme
@@ -41,9 +42,9 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
-    val currentTheme by viewModel.appTheme.collectAsState()
-    val currentFontSize by viewModel.appFontSize.collectAsState()
-    val currentIconSize by viewModel.appIconSize.collectAsState()
+    val currentTheme by viewModel.appTheme.collectAsStateWithLifecycle()
+    val currentFontSize by viewModel.appFontSize.collectAsStateWithLifecycle()
+    val currentIconSize by viewModel.appIconSize.collectAsStateWithLifecycle()
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")

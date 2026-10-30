@@ -58,14 +58,14 @@ fun StationItem(
     ) {
         Row(
             modifier = Modifier
-                .padding(12.dp)
+                .padding(horizontal = 10.dp, vertical = 8.dp)
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Radio thumbnail with profile logo or icon
             Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(44.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(
                         if (isPlaying) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
@@ -107,17 +107,17 @@ fun StationItem(
                 }
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(10.dp))
 
             // Text core infos
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = station.name,
-                    style = MaterialTheme.typography.bodyLarge.copy(
+                    style = MaterialTheme.typography.bodyMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
                     ),
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Row(
@@ -280,7 +280,7 @@ fun StationsList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("stations_lazy_list"),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                     contentPadding = contentPadding
                 ) {
                     items(filteredStations, key = { it.id }) { station ->
