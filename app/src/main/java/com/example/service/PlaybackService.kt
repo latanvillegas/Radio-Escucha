@@ -203,29 +203,8 @@ class PlaybackService : MediaLibraryService() {
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
-        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-            .setConnectTimeoutMs(8000)
-            .setReadTimeoutMs(15000)
-            .setAllowCrossProtocolRedirects(true)
-            .setUserAgent("OpenRadio/1.2 (Android; Linux)")
-            .setDefaultRequestProperties(mapOf("Icy-MetaData" to "1"))
-
-        val dataSourceFactory = DefaultDataSource.Factory(this, httpDataSourceFactory)
-        val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
-
-        val renderersFactory = object : DefaultRenderersFactory(this) {
-            override fun buildAudioSink(
-                context: android.content.Context,
-                enableFloatOutput: Boolean,
-                enableAudioTrackPlaybackParams: Boolean
-            ): AudioSink {
-                return DefaultAudioSink.Builder(context)
-                    .setEnableFloatOutput(enableFloatOutput)
-                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                    .setAudioProcessors(arrayOf(RadioAudioDspEngine.pcmProcessor))
-                    .build()
-            }
-        }
+        val mediaSourceFactory = StreamFormatHelper.createMediaSourceFactory(this)
+        val renderersFactory = StreamFormatHelper.createAudioOnlyRenderersFactory(this)
 
         val player = ExoPlayer.Builder(this, renderersFactory)
             .setMediaSourceFactory(mediaSourceFactory)
@@ -474,12 +453,31 @@ class PlaybackService : MediaLibraryService() {
                 serviceScope.launch(Dispatchers.IO) {
                     val allStations = repository.allStations.first()
                     val resolved = mediaItems.map { item ->
-                        if (item.localConfiguration?.uri != null) {
-                            item
+                        val existingUri = item.localConfiguration?.uri?.toString()
+                        val extraUrl = item.mediaMetadata.extras?.getString("station_url")
+                        val id = item.mediaId.toIntOrNull()
+                        val station = allStations.find { it.id == id }
+
+                        val rawTargetUrl = when {
+                            !existingUri.isNullOrBlank() -> existingUri
+                            !extraUrl.isNullOrBlank() -> extraUrl
+                            station != null -> station.url
+                            else -> allStations.firstOrNull()?.url.orEmpty()
+                        }
+
+                        if (rawTargetUrl.isNotBlank()) {
+                            val playableUrl = StreamFormatHelper.resolvePlayableStreamUrl(rawTargetUrl)
+                            if (station != null) {
+                                mapStationToMediaItem(station, playableUrl)
+                            } else {
+                                StreamFormatHelper.buildMediaItem(
+                                    mediaId = item.mediaId,
+                                    streamUrl = playableUrl,
+                                    mediaMetadata = item.mediaMetadata
+                                )
+                            }
                         } else {
-                            val id = item.mediaId.toIntOrNull()
-                            val station = allStations.find { it.id == id } ?: allStations.firstOrNull()
-                            if (station != null) mapStationToMediaItem(station) else item
+                            item
                         }
                     }.toMutableList()
                     future.set(resolved)

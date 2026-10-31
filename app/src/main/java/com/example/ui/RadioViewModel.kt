@@ -269,27 +269,8 @@ class RadioViewModel(
             .setBufferDurationsMs(4000, 30000, 2000, 4000)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
-        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-            .setConnectTimeoutMs(8000)
-            .setReadTimeoutMs(15000)
-            .setAllowCrossProtocolRedirects(true)
-            .setUserAgent("OpenRadio/1.2 (Android; Linux)")
-            .setDefaultRequestProperties(mapOf("Icy-MetaData" to "1"))
-        val dataSourceFactory = DefaultDataSource.Factory(application, httpDataSourceFactory)
-        val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
-        val renderersFactory = object : DefaultRenderersFactory(application) {
-            override fun buildAudioSink(
-                context: Context,
-                enableFloatOutput: Boolean,
-                enableAudioTrackPlaybackParams: Boolean
-            ): AudioSink {
-                return DefaultAudioSink.Builder(context)
-                    .setEnableFloatOutput(enableFloatOutput)
-                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                    .setAudioProcessors(arrayOf(RadioAudioDspEngine.pcmProcessor))
-                    .build()
-            }
-        }
+        val mediaSourceFactory = StreamFormatHelper.createMediaSourceFactory(application)
+        val renderersFactory = StreamFormatHelper.createAudioOnlyRenderersFactory(application)
         localPlayer = ExoPlayer.Builder(application, renderersFactory)
             .setMediaSourceFactory(mediaSourceFactory)
             .setLoadControl(loadControl)

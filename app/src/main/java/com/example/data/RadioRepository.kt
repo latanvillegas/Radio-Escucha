@@ -92,11 +92,11 @@ class RadioRepository(
             }
         }
 
-        // Pass 2: Fallback URL match for renamed stations, then update or insert
+        // Pass 2: Fallback URL match for renamed or user-added stations, then update or insert
         for ((index, def) in defaults.withIndex()) {
             val defUrlClean = def.url.trim().lowercase()
             val existing = defaultMatches[index] ?: refreshedCurrent.find {
-                it.id !in matchedIds && !it.isCustom && it.url.trim().lowercase() == defUrlClean
+                it.id !in matchedIds && it.url.trim().lowercase() == defUrlClean
             }
 
             if (existing == null) {
@@ -1150,6 +1150,19 @@ class RadioRepository(
                     province = "Managua",
                     district = "Managua",
                     faviconUrl = "https://static2.mytuner.mobi/media/tvos_radios/561/vivavoz-radio.e6d93172.png"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "TV Perú (Modo Radio)",
+                    url = "https://www.tvperu.gob.pe/play",
+                    genre = "TV en Vivo / Noticias / Cultura",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Perú",
+                    region = "Lima",
+                    province = "Lima",
+                    district = "Lima",
+                    faviconUrl = "https://www.tvperu.gob.pe/sites/default/files/logo_tvperu_0.png"
                 )
             )
         }
