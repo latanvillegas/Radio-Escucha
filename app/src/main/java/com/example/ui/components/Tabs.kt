@@ -167,7 +167,11 @@ fun HomeTab(
                 .padding(vertical = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            items(genresList) { genre ->
+            items(
+                items = genresList,
+                key = { it },
+                contentType = { "genre_chip" }
+            ) { genre ->
                 val isSelected = genre == selectedGenre
                 FilterChip(
                     selected = isSelected,
@@ -383,7 +387,8 @@ fun DiscoverTab(
             ) {
                 items(
                     items = displayedStations,
-                    key = { "${it.id}_${it.url}" }
+                    key = { "${it.id}_${it.url}" },
+                    contentType = { "discover_station" }
                 ) { station ->
                     val isPlaying = currentStation?.url == station.url && playbackStatus == PlaybackStatus.PLAYING
                     val isBuffering = currentStation?.url == station.url && playbackStatus == PlaybackStatus.BUFFERING
@@ -447,6 +452,8 @@ fun LibraryTab(
 ) {
     var selectedSection by remember { mutableStateOf(0) }
     val favorites = remember(allStations) { allStations.filter { it.isFavorite } }
+    val stationsById = remember(allStations) { allStations.associateBy { it.id.toLong() } }
+    val stationsByName = remember(allStations) { allStations.associateBy { it.name.lowercase() } }
 
     Column(
         modifier = Modifier
@@ -510,7 +517,11 @@ fun LibraryTab(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
-                    items(favorites, key = { it.id }) { station ->
+                    items(
+                        items = favorites,
+                        key = { it.id },
+                        contentType = { "favorite_station" }
+                    ) { station ->
                         val isPlaying = currentStation?.id == station.id && playbackStatus == PlaybackStatus.PLAYING
                         val isBuffering = currentStation?.id == station.id && playbackStatus == PlaybackStatus.BUFFERING
 
@@ -561,11 +572,16 @@ fun LibraryTab(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(bottom = 80.dp)
                     ) {
-                        items(recentHistory, key = { it.id }) { item ->
+                        items(
+                            items = recentHistory,
+                            key = { it.id },
+                            contentType = { "history_item" }
+                        ) { item ->
+                            val matched = stationsById[item.stationId] ?: stationsByName[item.stationName.lowercase()]
                             HistoryItem(
                                 historyItem = item,
+                                faviconUrl = matched?.faviconUrl.orEmpty(),
                                 onSelect = {
-                                    val matched = allStations.find { s -> s.id.toLong() == item.stationId || s.name == item.stationName }
                                     if (matched != null) {
                                         viewModel.playStation(matched)
                                     }

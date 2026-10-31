@@ -162,7 +162,8 @@ class RadioViewModel(
             .distinct()
             .sorted()
         listOf("Todas") + genres
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("Todas"))
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("Todas"))
 
     private val _sleepSecondsLeft = MutableStateFlow<Int?>(null)
     val sleepSecondsLeft: StateFlow<Int?> = _sleepSecondsLeft.asStateFlow()
@@ -213,9 +214,18 @@ class RadioViewModel(
     private var controllerFuture: ListenableFuture<MediaController>? = null
 
     private var searchJob: Job? = null
+    private var suggestionJob: Job? = null
     private var artworkFetchJob: Job? = null
     private var reconnectJob: Job? = null
     private var retryAttempt = 0
+
+    private val normalizeCache = android.util.LruCache<String, String>(512)
+
+    companion object {
+        private val DIACRITICS_REGEX = Regex("\\p{InCombiningDiacriticalMarks}+")
+        private val BRACKET_ALBUM_REGEX = Regex("^(.*?)\\s*\\[([^]]+)]$")
+        private val NON_ALPHANUM_REGEX = Regex("[^\\p{L}\\p{N}\\s-]")
+    }
 
     private val moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
@@ -441,7 +451,7 @@ class RadioViewModel(
             }
 
             // Extract album in brackets/parentheses if formatted like "Song Title [Album Name]"
-            val bracketRegex = Regex("^(.*?)\\s*\\[([^]]+)]$").find(parsedTitle)
+            val bracketRegex = BRACKET_ALBUM_REGEX.find(parsedTitle)
             if (bracketRegex != null && parsedAlbum.isNullOrBlank()) {
                 parsedTitle = bracketRegex.groupValues[1].trim()
                 parsedAlbum = bracketRegex.groupValues[2].trim()
@@ -466,11 +476,10 @@ class RadioViewModel(
             try {
                 val searchTerm = listOfNotNull(artist, title)
                     .joinToString(" ")
-                    .replace(Regex("[^\\p{L}\\p{N}\\s-]"), " ")
+                    .replace(NON_ALPHANUM_REGEX, " ")
                     .trim()
                 if (searchTerm.length < 3) return@launch
-                val response = MultiSourceRadioClients.iTunesSearchService.searchSong(term = searchTerm, limit = 1)
-                val match = response.results?.firstOrNull() ?: return@launch
+                val match = MultiSourceRadioClients.lookupSongCached(searchTerm) ?: return@launch
 
                 if (_currentTrackArtist.value.isNullOrBlank() && !match.artistName.isNullOrBlank()) {
                     _currentTrackArtist.value = match.artistName
@@ -1196,45 +1205,52 @@ class RadioViewModel(
     }
 
     private fun generateHomeSuggestions(query: String) {
+        suggestionJob?.cancel()
         if (query.isBlank()) {
             _homeSuggestions.value = emptyList()
             return
         }
-        val q = normalize(query.trim())
-        val list = stations.value
-        val suggestions = mutableListOf<SearchSuggestion>()
+        suggestionJob = viewModelScope.launch(Dispatchers.Default) {
+            val q = normalize(query.trim())
+            val list = stations.value
+            val suggestions = mutableListOf<SearchSuggestion>()
 
-        list.filter { normalize(it.name).contains(q, ignoreCase = true) }
-            .take(3)
-            .forEach {
-                val locInfo = listOf(it.province, it.region, it.country).filter { p -> p.isNotBlank() }.distinct().joinToString(", ")
-                val sub = if (locInfo.isNotBlank()) "${it.genre} • $locInfo" else it.genre
-                suggestions.add(SearchSuggestion(it.name, sub, it.name, SuggestionType.STATION))
-            }
+            list.filter { normalize(it.name).contains(q, ignoreCase = true) }
+                .take(3)
+                .forEach {
+                    val locInfo = listOf(it.province, it.region, it.country).filter { p -> p.isNotBlank() }.distinct().joinToString(", ")
+                    val sub = if (locInfo.isNotBlank()) "${it.genre} • $locInfo" else it.genre
+                    suggestions.add(SearchSuggestion(it.name, sub, it.name, SuggestionType.STATION))
+                }
 
-        list.mapNotNull { it.province.takeIf { p -> p.isNotBlank() } }
-            .distinct()
-            .filter { normalize(it).contains(q, ignoreCase = true) }
-            .take(2)
-            .forEach {
-                suggestions.add(SearchSuggestion(it, "Provincia / Localidad", it, SuggestionType.LOCATION))
-            }
+            list.mapNotNull { it.province.takeIf { p -> p.isNotBlank() } }
+                .distinct()
+                .filter { normalize(it).contains(q, ignoreCase = true) }
+                .take(2)
+                .forEach {
+                    suggestions.add(SearchSuggestion(it, "Provincia / Localidad", it, SuggestionType.LOCATION))
+                }
 
-        list.map { it.genre }
-            .distinct()
-            .filter { normalize(it).contains(q, ignoreCase = true) }
-            .take(2)
-            .forEach {
-                suggestions.add(SearchSuggestion(it, "Género musical", it, SuggestionType.GENRE))
-            }
+            list.map { it.genre }
+                .distinct()
+                .filter { normalize(it).contains(q, ignoreCase = true) }
+                .take(2)
+                .forEach {
+                    suggestions.add(SearchSuggestion(it, "Género musical", it, SuggestionType.GENRE))
+                }
 
-        _homeSuggestions.value = suggestions
+            _homeSuggestions.value = suggestions
+        }
     }
 
     fun normalize(str: String): String {
-        return Normalizer.normalize(str, Normalizer.Form.NFD)
-            .replace("\\p{InCombiningDiacriticalMarks}+".toRegex(), "")
+        if (str.isEmpty()) return ""
+        normalizeCache.get(str)?.let { return it }
+        val normalized = Normalizer.normalize(str, Normalizer.Form.NFD)
+            .replace(DIACRITICS_REGEX, "")
             .lowercase(Locale.getDefault())
+        normalizeCache.put(str, normalized)
+        return normalized
     }
 
     override fun onCleared() {
@@ -1246,11 +1262,13 @@ class RadioViewModel(
         bassBoostEffect = null
         localPlayer?.release()
         localPlayer = null
-        mediaController?.release()
+        controllerFuture?.let { MediaController.releaseFuture(it) }
+        controllerFuture = null
         mediaController = null
         sleepTimerJob?.cancel()
         reconnectJob?.cancel()
         searchJob?.cancel()
+        suggestionJob?.cancel()
         artworkFetchJob?.cancel()
         super.onCleared()
     }

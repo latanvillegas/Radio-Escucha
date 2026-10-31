@@ -290,6 +290,18 @@ object MultiSourceRadioClients {
             .create(ITunesSearchApiService::class.java)
     }
 
+    private val iTunesMetadataCache = android.util.LruCache<String, ITunesSongResult>(48)
+
+    suspend fun lookupSongCached(term: String): ITunesSongResult? {
+        val key = term.lowercase().trim()
+        if (key.length < 3) return null
+        iTunesMetadataCache.get(key)?.let { return it }
+        val response = iTunesSearchService.searchSong(term = key, limit = 1)
+        val match = response.results?.firstOrNull() ?: return null
+        iTunesMetadataCache.put(key, match)
+        return match
+    }
+
     val fmStreamService: FmStreamApiService by lazy {
         Retrofit.Builder()
             .baseUrl("https://fmstream.org/")

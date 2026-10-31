@@ -107,6 +107,9 @@ class PlaybackService : MediaLibraryService() {
         private const val FOLDER_FAVORITES = "folder_favorites"
         private const val FOLDER_RECENT = "folder_recent"
         private const val FOLDER_ALL = "folder_all"
+
+        private val BRACKET_ALBUM_REGEX = Regex("^(.*?)\\s*\\[([^]]+)]$")
+        private val NON_ALPHANUM_REGEX = Regex("[^\\p{L}\\p{N}\\s-]")
     }
 
     /**
@@ -214,6 +217,7 @@ class PlaybackService : MediaLibraryService() {
                 true
             )
             .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
         exoPlayer = player
 
@@ -375,7 +379,7 @@ class PlaybackService : MediaLibraryService() {
                 params: LibraryParams?
             ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
                 val future = SettableFuture.create<LibraryResult<ImmutableList<MediaItem>>>()
-                serviceScope.launch {
+                serviceScope.launch(Dispatchers.IO) {
                     when (parentId) {
                         ROOT_ID -> {
                             val folders = listOf(
@@ -416,7 +420,7 @@ class PlaybackService : MediaLibraryService() {
                 mediaId: String
             ): ListenableFuture<LibraryResult<MediaItem>> {
                 val future = SettableFuture.create<LibraryResult<MediaItem>>()
-                serviceScope.launch {
+                serviceScope.launch(Dispatchers.IO) {
                     val id = mediaId.toLongOrNull()
                     val station = if (id != null) repository.getStationById(id) else null
                     if (station != null) {
@@ -434,7 +438,7 @@ class PlaybackService : MediaLibraryService() {
                 mediaItems: MutableList<MediaItem>
             ): ListenableFuture<MutableList<MediaItem>> {
                 val future = SettableFuture.create<MutableList<MediaItem>>()
-                serviceScope.launch {
+                serviceScope.launch(Dispatchers.IO) {
                     val allStations = repository.allStations.first()
                     val resolved = mediaItems.map { item ->
                         if (item.localConfiguration?.uri != null) {
@@ -499,7 +503,7 @@ class PlaybackService : MediaLibraryService() {
             }
         }
 
-        val bracketRegex = Regex("^(.*?)\\s*\\[([^]]+)]$").find(parsedTitle)
+        val bracketRegex = BRACKET_ALBUM_REGEX.find(parsedTitle)
         if (bracketRegex != null && parsedAlbum.isNullOrBlank()) {
             parsedTitle = bracketRegex.groupValues[1].trim()
             parsedAlbum = bracketRegex.groupValues[2].trim()
@@ -524,12 +528,11 @@ class PlaybackService : MediaLibraryService() {
             try {
                 val searchTerm = listOfNotNull(artist, title)
                     .joinToString(" ")
-                    .replace(Regex("[^\\p{L}\\p{N}\\s-]"), " ")
+                    .replace(NON_ALPHANUM_REGEX, " ")
                     .trim()
                 if (searchTerm.length < 3) return@launch
 
-                val response = MultiSourceRadioClients.iTunesSearchService.searchSong(term = searchTerm, limit = 1)
-                val match = response.results?.firstOrNull() ?: return@launch
+                val match = MultiSourceRadioClients.lookupSongCached(searchTerm) ?: return@launch
 
                 if (currentSongArtist.isNullOrBlank() && !match.artistName.isNullOrBlank()) {
                     currentSongArtist = match.artistName
@@ -636,18 +639,37 @@ class PlaybackService : MediaLibraryService() {
             imageHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return null
                 val rawBytes = response.body?.bytes() ?: return null
-                val decoded = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size) ?: return null
                 val maxDim = 384
+
+                // First pass: decode bounds only without allocating pixel memory
+                val boundsOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, boundsOpts)
+                if (boundsOpts.outWidth <= 0 || boundsOpts.outHeight <= 0) return null
+
+                var sampleSize = 1
+                while (boundsOpts.outWidth / (sampleSize * 2) >= maxDim &&
+                    boundsOpts.outHeight / (sampleSize * 2) >= maxDim
+                ) {
+                    sampleSize *= 2
+                }
+
+                // Second pass: decode with subsampling
+                val decodeOpts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+                val decoded = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, decodeOpts) ?: return null
+
                 val bitmap = if (decoded.width > maxDim || decoded.height > maxDim) {
                     val ratio = minOf(maxDim.toFloat() / decoded.width, maxDim.toFloat() / decoded.height)
                     val targetW = (decoded.width * ratio).toInt().coerceAtLeast(1)
                     val targetH = (decoded.height * ratio).toInt().coerceAtLeast(1)
-                    Bitmap.createScaledBitmap(decoded, targetW, targetH, true)
+                    val scaled = Bitmap.createScaledBitmap(decoded, targetW, targetH, true)
+                    if (scaled !== decoded) decoded.recycle()
+                    scaled
                 } else {
                     decoded
                 }
                 val stream = ByteArrayOutputStream()
                 bitmap.compress(Bitmap.CompressFormat.PNG, 90, stream)
+                bitmap.recycle()
                 val finalBytes = stream.toByteArray()
                 artworkCache.put(url, finalBytes)
                 finalBytes
@@ -658,6 +680,8 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun generateFallbackStationLogoBytes(stationName: String): ByteArray? {
+        val cacheKey = "fallback_${stationName.lowercase().trim()}"
+        artworkCache.get(cacheKey)?.let { return it }
         return try {
             val size = 256
             val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -701,7 +725,10 @@ class PlaybackService : MediaLibraryService() {
 
             val out = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.PNG, 95, out)
-            out.toByteArray()
+            bitmap.recycle()
+            val bytes = out.toByteArray()
+            artworkCache.put(cacheKey, bytes)
+            bytes
         } catch (_: Exception) {
             null
         }
@@ -760,39 +787,48 @@ class PlaybackService : MediaLibraryService() {
     private fun toggleFavorite() {
         serviceScope.launch {
             val currentMediaId = exoPlayer?.currentMediaItem?.mediaId?.toLongOrNull() ?: return@launch
-            val station = repository.getStationById(currentMediaId) ?: return@launch
-            repository.update(station.copy(isFavorite = !station.isFavorite))
+            withContext(Dispatchers.IO) {
+                val station = repository.getStationById(currentMediaId) ?: return@withContext
+                repository.update(station.copy(isFavorite = !station.isFavorite))
+            }
         }
     }
 
     private fun playNextStationInService() {
         serviceScope.launch {
-            val stations = repository.allStations.first()
-            if (stations.isEmpty()) return@launch
             val currentId = exoPlayer?.currentMediaItem?.mediaId?.toIntOrNull()
-            val currentIndex = stations.indexOfFirst { it.id == currentId }
-            val nextIndex = if (currentIndex in 0 until stations.size - 1) currentIndex + 1 else 0
-            playStationInService(stations[nextIndex])
+            val nextStation = withContext(Dispatchers.IO) {
+                val stations = repository.allStations.first()
+                if (stations.isEmpty()) return@withContext null
+                val currentIndex = stations.indexOfFirst { it.id == currentId }
+                val nextIndex = if (currentIndex in 0 until stations.size - 1) currentIndex + 1 else 0
+                stations[nextIndex]
+            } ?: return@launch
+            playStationInService(nextStation)
         }
     }
 
     private fun playPreviousStationInService() {
         serviceScope.launch {
-            val stations = repository.allStations.first()
-            if (stations.isEmpty()) return@launch
             val currentId = exoPlayer?.currentMediaItem?.mediaId?.toIntOrNull()
-            val currentIndex = stations.indexOfFirst { it.id == currentId }
-            val prevIndex = if (currentIndex > 0) currentIndex - 1 else stations.size - 1
-            playStationInService(stations[prevIndex])
+            val prevStation = withContext(Dispatchers.IO) {
+                val stations = repository.allStations.first()
+                if (stations.isEmpty()) return@withContext null
+                val currentIndex = stations.indexOfFirst { it.id == currentId }
+                val prevIndex = if (currentIndex > 0) currentIndex - 1 else stations.size - 1
+                stations[prevIndex]
+            } ?: return@launch
+            playStationInService(prevStation)
         }
     }
 
     private fun playRandomStationInService() {
         serviceScope.launch {
-            val stations = repository.allStations.first()
-            if (stations.isNotEmpty()) {
-                playStationInService(stations.random())
-            }
+            val randomStation = withContext(Dispatchers.IO) {
+                val stations = repository.allStations.first()
+                if (stations.isNotEmpty()) stations.random() else null
+            } ?: return@launch
+            playStationInService(randomStation)
         }
     }
 
@@ -805,7 +841,9 @@ class PlaybackService : MediaLibraryService() {
         exoPlayer?.setMediaItem(mediaItem)
         exoPlayer?.prepare()
         exoPlayer?.play()
-        repository.insertHistory(station)
+        withContext(Dispatchers.IO) {
+            repository.insertHistory(station)
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? {

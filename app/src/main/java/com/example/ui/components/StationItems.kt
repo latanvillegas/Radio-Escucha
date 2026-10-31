@@ -134,20 +134,21 @@ fun StationItem(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
-                    val geoParts = listOfNotNull(
-                        station.country.takeIf { it.isNotEmpty() },
-                        station.region.takeIf { it.isNotEmpty() },
-                        station.province.takeIf { it.isNotEmpty() },
-                        station.district.takeIf { it.isNotEmpty() }
-                    ).filter { it.isNotBlank() }
+                    val geoLabel = remember(station.country, station.region, station.province, station.district) {
+                        listOf(station.country, station.region, station.province, station.district)
+                            .map { it.trim() }
+                            .filter { it.isNotBlank() }
+                            .distinctBy { it.lowercase() }
+                            .joinToString(" / ")
+                    }
 
-                    if (geoParts.isNotEmpty()) {
+                    if (geoLabel.isNotEmpty()) {
                         Text(
                             text = "•",
                             style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                         )
                         Text(
-                            text = geoParts.joinToString(" / "),
+                            text = geoLabel,
                             style = MaterialTheme.typography.bodySmall.copy(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                 fontSize = 11.sp
@@ -263,7 +264,11 @@ fun StationsList(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = contentPadding
                 ) {
-                    items(filteredStations, key = { it.id }) { station ->
+                    items(
+                        items = filteredStations,
+                        key = { it.id },
+                        contentType = { "station_item" }
+                    ) { station ->
                         StationItem(
                             station = station,
                             isPlaying = currentStation?.id == station.id && playbackStatus == PlaybackStatus.PLAYING,
@@ -283,7 +288,11 @@ fun StationsList(
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                     contentPadding = contentPadding
                 ) {
-                    items(filteredStations, key = { it.id }) { station ->
+                    items(
+                        items = filteredStations,
+                        key = { it.id },
+                        contentType = { "station_item" }
+                    ) { station ->
                         StationItem(
                             station = station,
                             isPlaying = currentStation?.id == station.id && playbackStatus == PlaybackStatus.PLAYING,
@@ -451,6 +460,7 @@ fun RadioBrowserStationItem(
 @Composable
 fun HistoryItem(
     historyItem: PlaybackHistory,
+    faviconUrl: String = "",
     onSelect: () -> Unit
 ) {
     val dateFormat = remember { SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()) }
@@ -482,7 +492,7 @@ fun HistoryItem(
                 StationLogo(
                     stationName = historyItem.stationName,
                     stationUrl = "",
-                    faviconUrl = "",
+                    faviconUrl = faviconUrl,
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(RoundedCornerShape(8.dp))
