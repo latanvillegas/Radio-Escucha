@@ -44,6 +44,11 @@ class RadioRepository(
         playbackHistoryDao.clearHistory()
     }
 
+    private fun normalizeKey(value: String): String {
+        val decomposed = java.text.Normalizer.normalize(value.trim().lowercase(), java.text.Normalizer.Form.NFD)
+        return decomposed.replace(DIACRITICS_REGEX, "")
+    }
+
     suspend fun checkAndPrepopulate() {
         val current = radioDao.getAllStations().first()
         val defaults = getDefaultStations()
@@ -53,49 +58,90 @@ class RadioRepository(
         }
 
         // Remove deprecated stations ("quitar estas radios") and legacy renamed duplicates
-        val removedNamesLower = REMOVED_AND_LEGACY_STATION_NAMES.map { it.lowercase() }.toSet()
+        val removedNamesNormalized = REMOVED_AND_LEGACY_STATION_NAMES.map { normalizeKey(it) }.toSet()
         current.filter { station ->
-            station.name.trim().lowercase() in removedNamesLower ||
-                (station.name == "La Cheverísima" && station.region == "Regional") ||
-                (station.name == "Radio Activa" && station.region == "Regional")
+            normalizeKey(station.name) in removedNamesNormalized ||
+                (normalizeKey(station.name) == "la cheverisima" && station.region == "Regional") ||
+                (normalizeKey(station.name) == "radio activa" && station.region == "Regional")
         }.forEach { toDelete ->
             radioDao.deleteStation(toDelete)
         }
 
         val refreshedCurrent = radioDao.getAllStations().first()
         val missingToInsert = mutableListOf<RadioStation>()
+        val matchedIds = mutableSetOf<Int>()
+        val defaultMatches = mutableMapOf<Int, RadioStation>()
 
-        for (def in defaults) {
-            val existing = refreshedCurrent.find {
-                it.name.equals(def.name, ignoreCase = true) &&
-                    it.province.equals(def.province, ignoreCase = true)
+        // Pass 1: Match strictly by normalized name + province, or normalized name first
+        // so stations sharing the same stream URL never steal each other's row
+        for ((index, def) in defaults.withIndex()) {
+            val defNameNorm = normalizeKey(def.name)
+            val defProvNorm = normalizeKey(def.province)
+
+            val byName = refreshedCurrent.find {
+                it.id !in matchedIds &&
+                    normalizeKey(it.name) == defNameNorm &&
+                    normalizeKey(it.province) == defProvNorm
             } ?: refreshedCurrent.find {
-                it.name.equals(def.name, ignoreCase = true)
+                it.id !in matchedIds && normalizeKey(it.name) == defNameNorm
+            }
+
+            if (byName != null) {
+                matchedIds.add(byName.id)
+                defaultMatches[index] = byName
+            }
+        }
+
+        // Pass 2: Fallback URL match for renamed stations, then update or insert
+        for ((index, def) in defaults.withIndex()) {
+            val defUrlClean = def.url.trim().lowercase()
+            val existing = defaultMatches[index] ?: refreshedCurrent.find {
+                it.id !in matchedIds && !it.isCustom && it.url.trim().lowercase() == defUrlClean
             }
 
             if (existing == null) {
                 missingToInsert.add(def)
-            } else if (
-                existing.url != def.url ||
-                existing.faviconUrl != def.faviconUrl ||
-                existing.genre != def.genre ||
-                existing.country != def.country ||
-                existing.region != def.region ||
-                existing.province != def.province ||
-                existing.district != def.district
-            ) {
-                radioDao.updateStation(
-                    existing.copy(
-                        name = def.name,
-                        url = def.url,
-                        genre = def.genre,
-                        country = def.country,
-                        region = def.region,
-                        province = def.province,
-                        district = def.district,
-                        faviconUrl = def.faviconUrl
+            } else {
+                matchedIds.add(existing.id)
+                if (
+                    existing.name != def.name ||
+                    existing.url != def.url ||
+                    existing.faviconUrl != def.faviconUrl ||
+                    existing.genre != def.genre ||
+                    existing.country != def.country ||
+                    existing.region != def.region ||
+                    existing.province != def.province ||
+                    existing.district != def.district
+                ) {
+                    radioDao.updateStation(
+                        existing.copy(
+                            name = def.name,
+                            url = def.url,
+                            genre = def.genre,
+                            country = def.country,
+                            region = def.region,
+                            province = def.province,
+                            district = def.district,
+                            faviconUrl = def.faviconUrl
+                        )
                     )
-                )
+                }
+            }
+        }
+
+        // Pass 3: Delete any leftover non-custom stations (duplicates or legacy entries from older APKs)
+        // and deduplicate any custom stations with identical (name, url)
+        val seenCustomKeys = mutableSetOf<String>()
+        for (station in refreshedCurrent) {
+            if (!station.isCustom) {
+                if (station.id !in matchedIds) {
+                    radioDao.deleteStation(station)
+                }
+            } else {
+                val customKey = "${normalizeKey(station.name)}|${station.url.trim().lowercase()}"
+                if (!seenCustomKeys.add(customKey)) {
+                    radioDao.deleteStation(station)
+                }
             }
         }
 
@@ -105,6 +151,8 @@ class RadioRepository(
     }
 
     companion object {
+        private val DIACRITICS_REGEX = Regex("\\p{InCombiningDiacriticalMarks}+")
+
         // List of stations explicitly requested to be removed + legacy duplicate names
         val REMOVED_AND_LEGACY_STATION_NAMES = listOf(
             // Explicitly requested to remove ("quitar estas radios")
@@ -1062,7 +1110,7 @@ class RadioRepository(
                     region = "Galicia",
                     province = "Vigo",
                     district = "Vigo",
-                    faviconUrl = ""
+                    faviconUrl = "https://www.cope.es/favicon/cope/track-default-cope.png"
                 ),
                 RadioStation(
                     id = 0,

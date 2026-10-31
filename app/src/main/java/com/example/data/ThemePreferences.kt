@@ -12,10 +12,12 @@ import kotlinx.coroutines.flow.map
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 enum class AppTheme(val displayName: String) {
-    COSMICO("Cósmico"),
-    AMOLED("AMOLED"),
-    MEDIANOCHE_AZUL("Medianoche Azul"),
-    AMBAR_CALIDO("Ámbar Cálido")
+    COSMICO("Cósmico 3D"),
+    AMOLED("AMOLED 3D"),
+    MEDIANOCHE_AZUL("Medianoche Azul 3D"),
+    AMBAR_CALIDO("Ámbar Cálido 3D"),
+    ESMERALDA_3D("Esmeralda 3D"),
+    CYBER_NEON_3D("Neón Cyber 3D")
 }
 
 enum class AppFontSize(val displayName: String, val scale: Float) {

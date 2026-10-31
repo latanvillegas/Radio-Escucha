@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
@@ -23,6 +24,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.RadioStation
 import com.example.ui.PlaybackStatus
+import com.example.ui.theme.glassCircle3D
+import com.example.ui.theme.heroDashboard3D
+import com.example.ui.theme.orbButton3D
 import com.example.util.ConnectivityObserver
 
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -79,15 +83,11 @@ fun PlaybackDashboard(
         0f
     }
 
-    Card(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .animateContentSize(animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing))
-            .clip(RoundedCornerShape(18.dp)),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            .heroDashboard3D(shape = RoundedCornerShape(20.dp), elevation = 10.dp)
     ) {
         if (isCompact) {
             // Compact Mini-Player Mode (ideal for Redmi A2 / compact screens & while scrolling list)
@@ -511,7 +511,7 @@ fun PlaybackDashboard(
                     }
                 }
 
-                // Playback Controls + Volume Row
+                // Playback Controls Row with 3D Tactile Depth
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -519,35 +519,39 @@ fun PlaybackDashboard(
                 ) {
                     IconButton(
                         onClick = onRandomStation,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier
+                            .size(36.dp)
+                            .glassCircle3D(elevation = 3.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Shuffle,
                             contentDescription = "Aleatoria",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
 
                     IconButton(
                         onClick = onPreviousStation,
-                        modifier = Modifier.size(38.dp)
+                        modifier = Modifier
+                            .size(38.dp)
+                            .glassCircle3D(elevation = 4.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.SkipPrevious,
                             contentDescription = "Anterior",
                             tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
 
-                    // Main Play/Pause Button
-                    FloatingActionButton(
-                        onClick = onTogglePlay,
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        shape = CircleShape,
-                        modifier = Modifier.size(46.dp)
+                    // Main 3D Glowing Orb Play/Pause Button
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .orbButton3D(baseColor = MaterialTheme.colorScheme.primary, elevation = 10.dp)
+                            .clickable(onClick = onTogglePlay),
+                        contentAlignment = Alignment.Center
                     ) {
                         if (isBuffering) {
                             CircularProgressIndicator(
@@ -559,6 +563,7 @@ fun PlaybackDashboard(
                             Icon(
                                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                                 contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                                tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(26.dp)
                             )
                         }
@@ -566,25 +571,29 @@ fun PlaybackDashboard(
 
                     IconButton(
                         onClick = onNextStation,
-                        modifier = Modifier.size(38.dp)
+                        modifier = Modifier
+                            .size(38.dp)
+                            .glassCircle3D(elevation = 4.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.SkipNext,
                             contentDescription = "Siguiente",
                             tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
 
                     IconButton(
                         onClick = onStopPlayback,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier
+                            .size(36.dp)
+                            .glassCircle3D(elevation = 3.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Stop,
                             contentDescription = "Detener",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }

@@ -43,6 +43,9 @@ import com.example.R
 import com.example.data.RadioStation
 import com.example.ui.components.*
 import com.example.ui.theme.LocalIconScale
+import com.example.ui.theme.Surface3D
+import com.example.ui.theme.glassCircle3D
+import com.example.ui.theme.orbButton3D
 import kotlin.math.roundToInt
 
 private fun formatTimeLeft(seconds: Int?): String {
@@ -160,7 +163,11 @@ fun RadioApp(
         }
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Surface3D.ambientScreenBrush())
+    ) {
         val isTablet = maxWidth >= 600.dp
         val isCompactScreenHeight = maxHeight < 780.dp
 
@@ -181,9 +188,8 @@ fun RadioApp(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                                    .size(38.dp)
+                                    .orbButton3D(baseColor = MaterialTheme.colorScheme.primaryContainer, elevation = 6.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
@@ -196,7 +202,7 @@ fun RadioApp(
                             Text(
                                 "OpenRadio",
                                 style = MaterialTheme.typography.titleLarge.copy(
-                                    fontWeight = FontWeight.Medium,
+                                    fontWeight = FontWeight.Bold,
                                     letterSpacing = (-0.5).sp,
                                     color = MaterialTheme.colorScheme.onBackground
                                 )
@@ -207,21 +213,26 @@ fun RadioApp(
                         IconButton(
                             onClick = { showEqualizerDialog = true },
                             modifier = Modifier
+                                .padding(horizontal = 2.dp)
+                                .size(36.dp)
+                                .glassCircle3D(elevation = if (equalizerEnabled) 6.dp else 3.dp)
                                 .testTag("equalizer_top_button")
-                                .minimumInteractiveComponentSize()
                         ) {
                             Icon(
                                 Icons.Default.GraphicEq,
                                 contentDescription = "Ecualizador",
-                                tint = if (equalizerEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                tint = if (equalizerEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(19.dp * iconScale)
                             )
                         }
 
                         IconButton(
                             onClick = { showSleepTimerMenu = true },
                             modifier = Modifier
+                                .padding(horizontal = 2.dp)
+                                .size(36.dp)
+                                .glassCircle3D(elevation = 3.dp)
                                 .testTag("sleep_timer_top_button")
-                                .minimumInteractiveComponentSize()
                         ) {
                             BadgedBox(
                                 badge = {
@@ -238,7 +249,8 @@ fun RadioApp(
                                 Icon(
                                     if (sleepSecondsLeft != null) Icons.Filled.Timer else Icons.Outlined.Timer,
                                     contentDescription = "Temporizador de apagado",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(19.dp * iconScale)
                                 )
                             }
                         }
@@ -246,39 +258,39 @@ fun RadioApp(
                         Box(
                             modifier = Modifier
                                 .padding(end = 8.dp, start = 4.dp)
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .size(36.dp)
+                                .glassCircle3D(elevation = 4.dp)
                                 .clickable { onNavigateToSettings() },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Default.Person,
                                 contentDescription = "Ajustes",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f),
                                 modifier = Modifier.size(18.dp * iconScale)
                             )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
+                        containerColor = Color.Transparent,
                         titleContentColor = MaterialTheme.colorScheme.onBackground
                     )
                 )
             },
             floatingActionButton = {
                 if (!isTablet) {
-                    FloatingActionButton(
-                        onClick = { showAddOptionsDialog = true },
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        shape = RoundedCornerShape(16.dp),
+                    Box(
                         modifier = Modifier
-                            .testTag("add_radio_fab")
+                            .size(56.dp)
+                            .orbButton3D(baseColor = MaterialTheme.colorScheme.primary, elevation = 12.dp)
+                            .clickable { showAddOptionsDialog = true }
+                            .testTag("add_radio_fab"),
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.Add,
                             contentDescription = "Agregar radio",
+                            tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(26.dp * iconScale)
                         )
                     }
@@ -287,8 +299,8 @@ fun RadioApp(
             bottomBar = {
                 if (!isTablet) {
                     NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 0.dp
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                        tonalElevation = 8.dp
                     ) {
                         val navItems = listOf(
                             Triple(Icons.Filled.Home, Icons.Outlined.Home, "Inicio"),
@@ -305,7 +317,7 @@ fun RadioApp(
                                     Icon(
                                         if (isSelected) item.first else item.second,
                                         contentDescription = item.third,
-                                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(24.dp * iconScale)
                                     )
                                 },
@@ -314,7 +326,7 @@ fun RadioApp(
                                         item.third,
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     )
                                 },
@@ -326,14 +338,13 @@ fun RadioApp(
                     }
                 }
             },
-            containerColor = MaterialTheme.colorScheme.background
+            containerColor = Color.Transparent
         ) { innerPadding ->
             if (isTablet) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = innerPadding.calculateTopPadding())
-                        .background(MaterialTheme.colorScheme.background),
+                        .padding(top = innerPadding.calculateTopPadding()),
                     contentAlignment = Alignment.TopCenter
                 ) {
                     Row(
@@ -342,24 +353,24 @@ fun RadioApp(
                             .widthIn(max = 1400.dp)
                     ) {
                         NavigationRail(
-                            containerColor = MaterialTheme.colorScheme.surface,
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
                             modifier = Modifier
                                 .fillMaxHeight()
                                 .width(80.dp),
                             header = {
                                 Spacer(modifier = Modifier.height(8.dp))
-                                FloatingActionButton(
-                                    onClick = { showAddOptionsDialog = true },
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                                    shape = RoundedCornerShape(16.dp),
+                                Box(
                                     modifier = Modifier
-                                        .size(56.dp)
-                                        .testTag("add_radio_fab_rail")
+                                        .size(54.dp)
+                                        .orbButton3D(baseColor = MaterialTheme.colorScheme.primary, elevation = 10.dp)
+                                        .clickable { showAddOptionsDialog = true }
+                                        .testTag("add_radio_fab_rail"),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         Icons.Default.Add,
                                         contentDescription = "Agregar radio",
+                                        tint = MaterialTheme.colorScheme.onPrimary,
                                         modifier = Modifier.size(24.dp)
                                     )
                                 }
@@ -381,7 +392,7 @@ fun RadioApp(
                                         Icon(
                                             if (isSelected) item.first else item.second,
                                             contentDescription = item.third,
-                                            tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.size(24.dp * iconScale)
                                         )
                                     },
@@ -390,7 +401,7 @@ fun RadioApp(
                                             item.third,
                                             style = MaterialTheme.typography.labelSmall.copy(
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                color = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         )
                                     },
@@ -480,7 +491,6 @@ fun RadioApp(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
-                        .background(MaterialTheme.colorScheme.background)
                 ) {
                     Column(
                         modifier = Modifier

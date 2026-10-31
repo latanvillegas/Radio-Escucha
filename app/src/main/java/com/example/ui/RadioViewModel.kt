@@ -18,7 +18,10 @@ import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
@@ -32,6 +35,7 @@ import com.example.data.RadioStation
 import com.example.service.PlaybackService
 import com.example.util.ConnectivityObserver
 import com.example.util.NetworkConnectivityObserver
+import com.example.util.RadioAudioDspEngine
 import com.example.util.StreamFormatHelper
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
@@ -106,19 +110,14 @@ class RadioViewModel(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
-    // Audio Equalizer & Bass Boost state
-    val eqPresets = listOf("Normal", "Rock", "Pop", "Voz / Noticias", "Clásica", "Jazz / Acústico")
-    private val _equalizerEnabled = MutableStateFlow(false)
-    val equalizerEnabled: StateFlow<Boolean> = _equalizerEnabled.asStateFlow()
-
-    private val _selectedEqPreset = MutableStateFlow("Normal")
-    val selectedEqPreset: StateFlow<String> = _selectedEqPreset.asStateFlow()
-
-    private val _bassBoostStrength = MutableStateFlow(0f)
-    val bassBoostStrength: StateFlow<Float> = _bassBoostStrength.asStateFlow()
-
-    private var equalizerEffect: Equalizer? = null
-    private var bassBoostEffect: BassBoost? = null
+    // Audio Equalizer, 5-Band Biquad DSP, Bass Boost & Loudness state
+    val eqPresets: List<String> = RadioAudioDspEngine.presetProfilesDb.keys.toList()
+    val eqBandLabels: List<String> = RadioAudioDspEngine.bandLabels
+    val equalizerEnabled: StateFlow<Boolean> = RadioAudioDspEngine.enabled
+    val selectedEqPreset: StateFlow<String> = RadioAudioDspEngine.selectedPreset
+    val eqBandGainsDb: StateFlow<List<Float>> = RadioAudioDspEngine.bandGainsDb
+    val bassBoostStrength: StateFlow<Float> = RadioAudioDspEngine.bassBoostStrength
+    val loudnessBoost: StateFlow<Float> = RadioAudioDspEngine.loudnessBoost
 
     val stations: StateFlow<List<RadioStation>> = repository.allStations
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -235,6 +234,7 @@ class RadioViewModel(
     private val stationListAdapter = moshi.adapter<List<RadioStation>>(stationListType)
 
     init {
+        RadioAudioDspEngine.init(application)
         viewModelScope.launch {
             repository.checkAndPrepopulate()
         }
@@ -263,6 +263,7 @@ class RadioViewModel(
         }
     }
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     private fun setupFallbackExoPlayer(application: Application) {
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(4000, 30000, 2000, 4000)
@@ -276,12 +277,26 @@ class RadioViewModel(
             .setDefaultRequestProperties(mapOf("Icy-MetaData" to "1"))
         val dataSourceFactory = DefaultDataSource.Factory(application, httpDataSourceFactory)
         val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
-        localPlayer = ExoPlayer.Builder(application)
+        val renderersFactory = object : DefaultRenderersFactory(application) {
+            override fun buildAudioSink(
+                context: Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean
+            ): AudioSink {
+                return DefaultAudioSink.Builder(context)
+                    .setEnableFloatOutput(enableFloatOutput)
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .setAudioProcessors(arrayOf(RadioAudioDspEngine.pcmProcessor))
+                    .build()
+            }
+        }
+        localPlayer = ExoPlayer.Builder(application, renderersFactory)
             .setMediaSourceFactory(mediaSourceFactory)
             .setLoadControl(loadControl)
             .setHandleAudioBecomingNoisy(true)
             .build().also {
                 StreamFormatHelper.applyAudioOnlyRadioMode(it)
+                RadioAudioDspEngine.bindAudioSession(it.audioSessionId)
             }
         setupPlayerListener(localPlayer)
     }
@@ -502,82 +517,29 @@ class RadioViewModel(
 
     private fun bindAudioEffectsIfAvailable() {
         val sessionId = localPlayer?.audioSessionId ?: return
-        if (sessionId <= 0) return
-        try {
-            if (equalizerEffect == null) {
-                equalizerEffect = Equalizer(0, sessionId).apply {
-                    enabled = _equalizerEnabled.value
-                }
-            }
-            if (bassBoostEffect == null) {
-                bassBoostEffect = BassBoost(0, sessionId).apply {
-                    enabled = _equalizerEnabled.value
-                }
-            }
-            applyEqualizerSettings()
-        } catch (_: Exception) {
-            // Device/Emulator without hardware DSP effects
+        if (sessionId > 0) {
+            RadioAudioDspEngine.bindAudioSession(sessionId)
         }
     }
 
     fun setEqualizerEnabled(enabled: Boolean) {
-        _equalizerEnabled.value = enabled
-        try {
-            equalizerEffect?.enabled = enabled
-            bassBoostEffect?.enabled = enabled
-            if (enabled) applyEqualizerSettings()
-        } catch (_: Exception) {}
+        RadioAudioDspEngine.setEnabled(enabled)
     }
 
     fun selectEqualizerPreset(presetName: String) {
-        _selectedEqPreset.value = presetName
-        if (!_equalizerEnabled.value) {
-            _equalizerEnabled.value = true
-        }
-        applyEqualizerSettings()
+        RadioAudioDspEngine.selectPreset(presetName)
+    }
+
+    fun setEqualizerBandGain(bandIndex: Int, gainDb: Float) {
+        RadioAudioDspEngine.setBandGainDb(bandIndex, gainDb)
     }
 
     fun setBassBoost(strength: Float) {
-        val clamped = strength.coerceIn(0f, 1f)
-        _bassBoostStrength.value = clamped
-        if (!_equalizerEnabled.value && clamped > 0f) {
-            _equalizerEnabled.value = true
-        }
-        applyEqualizerSettings()
+        RadioAudioDspEngine.setBassBoost(strength)
     }
 
-    private fun applyEqualizerSettings() {
-        try {
-            val eq = equalizerEffect
-            if (eq != null) {
-                eq.enabled = _equalizerEnabled.value
-                val bands = eq.numberOfBands.toInt()
-                val range = eq.bandLevelRange
-                val minLvl = range[0].toInt()
-                val maxLvl = range[1].toInt()
-                val mid = (minLvl + maxLvl) / 2
-                val boost = (maxLvl - mid) / 2
-
-                val profile = when (_selectedEqPreset.value) {
-                    "Rock" -> listOf(boost, boost / 2, -boost / 3, boost / 2, boost)
-                    "Pop" -> listOf(-boost / 4, boost / 2, boost, boost / 2, -boost / 4)
-                    "Voz / Noticias" -> listOf(-boost / 2, boost / 3, boost, boost / 2, -boost / 2)
-                    "Clásica" -> listOf(boost / 2, boost / 3, 0, boost / 3, boost / 2)
-                    "Jazz / Acústico" -> listOf(boost / 2, 0, boost / 3, boost / 2, boost / 3)
-                    else -> listOf(0, 0, 0, 0, 0)
-                }
-                for (b in 0 until bands) {
-                    val targetOffset = profile.getOrElse(b % profile.size) { 0 }
-                    val level = (mid + targetOffset).coerceIn(minLvl, maxLvl).toShort()
-                    eq.setBandLevel(b.toShort(), level)
-                }
-            }
-            val bb = bassBoostEffect
-            if (bb != null && bb.strengthSupported) {
-                bb.enabled = _equalizerEnabled.value
-                bb.setStrength((_bassBoostStrength.value * 1000).toInt().toShort())
-            }
-        } catch (_: Exception) {}
+    fun setLoudnessBoost(strength: Float) {
+        RadioAudioDspEngine.setLoudnessBoost(strength)
     }
 
     private fun getActivePlayer(): Player? = mediaController ?: localPlayer
@@ -1263,12 +1225,6 @@ class RadioViewModel(
     }
 
     override fun onCleared() {
-        try {
-            equalizerEffect?.release()
-            bassBoostEffect?.release()
-        } catch (_: Exception) {}
-        equalizerEffect = null
-        bassBoostEffect = null
         localPlayer?.release()
         localPlayer = null
         controllerFuture?.let { MediaController.releaseFuture(it) }

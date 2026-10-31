@@ -19,14 +19,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.RadioStation
 import com.example.ui.PlaybackStatus
+import com.example.ui.theme.Surface3D
+import com.example.ui.theme.card3D
+import com.example.ui.theme.glassCircle3D
+import com.example.ui.theme.orbButton3D
 import com.example.util.ConnectivityObserver
 import kotlin.math.roundToInt
 
@@ -82,9 +89,10 @@ fun FullPlayerScreen(
         0f
     }
 
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Surface3D.ambientScreenBrush())
     ) {
         Column(
             modifier = Modifier
@@ -95,24 +103,29 @@ fun FullPlayerScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Top Bar
+            // Top Bar with 3D Glass Orbs
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onDismiss) {
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .glassCircle3D(elevation = 4.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = "Cerrar",
                         tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(26.dp)
                     )
                 }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "REPRODUCIENDO",
+                        text = "REPRODUCIENDO EN 3D",
                         style = MaterialTheme.typography.labelSmall,
                         letterSpacing = 2.sp,
                         color = MaterialTheme.colorScheme.primary,
@@ -125,37 +138,57 @@ fun FullPlayerScreen(
                     )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onOpenEqualizer) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    IconButton(
+                        onClick = onOpenEqualizer,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .glassCircle3D(elevation = if (equalizerEnabled) 6.dp else 3.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.GraphicEq,
                             contentDescription = "Ecualizador",
-                            tint = if (equalizerEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
+                            tint = if (equalizerEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
-                    IconButton(onClick = { onToggleFavorite(currentStation) }) {
+                    IconButton(
+                        onClick = { onToggleFavorite(currentStation) },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .glassCircle3D(elevation = 3.dp)
+                    ) {
                         Icon(
                             imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                             contentDescription = "Favorito",
-                            tint = if (isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
+                            tint = if (isFavorite) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
-                    IconButton(onClick = { onShare(currentStation) }) {
+                    IconButton(
+                        onClick = { onShare(currentStation) },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .glassCircle3D(elevation = 3.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Share,
                             contentDescription = "Compartir",
-                            tint = MaterialTheme.colorScheme.onBackground
+                            tint = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
             }
 
-            // Central Circular Artwork (Larger, without center dot)
+            // Central 3D Glowing Circular Artwork
             Box(
                 modifier = Modifier
                     .size(284.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .orbButton3D(baseColor = MaterialTheme.colorScheme.surfaceVariant, elevation = 18.dp),
                 contentAlignment = Alignment.Center
             ) {
                 StationLogo(
@@ -163,7 +196,7 @@ fun FullPlayerScreen(
                     stationUrl = currentStation.url,
                     faviconUrl = currentTrackArtworkUrl ?: currentStation.faviconUrl,
                     modifier = Modifier
-                        .size(272.dp)
+                        .size(268.dp)
                         .clip(CircleShape)
                         .graphicsLayer {
                             rotationZ = if (isPlaying) rotationAngle else 0f
@@ -171,7 +204,7 @@ fun FullPlayerScreen(
                 )
             }
 
-            // Track metadata: Centered Station + Centered Song, Artist, Album
+            // Track metadata: Centered Station + 3D Card for Song, Artist, Album
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -189,10 +222,10 @@ fun FullPlayerScreen(
                         .basicMarquee()
                 )
 
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .card3D(shape = RoundedCornerShape(18.dp), isSelectedOrPlaying = isPlaying, elevation = 8.dp)
                 ) {
                     Column(
                         modifier = Modifier
@@ -234,7 +267,7 @@ fun FullPlayerScreen(
                             Icon(
                                 imageVector = Icons.Default.Person,
                                 contentDescription = "Artista",
-                                tint = MaterialTheme.colorScheme.secondary,
+                                tint = MaterialTheme.colorScheme.tertiary,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
@@ -260,7 +293,7 @@ fun FullPlayerScreen(
                             Icon(
                                 imageVector = Icons.Default.Album,
                                 contentDescription = "Álbum",
-                                tint = MaterialTheme.colorScheme.tertiary,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
@@ -281,7 +314,7 @@ fun FullPlayerScreen(
                 if (sleepSecondsLeft != null && sleepSecondsLeft > 0) {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
                         modifier = Modifier.padding(top = 2.dp)
                     ) {
                         Row(
@@ -306,41 +339,50 @@ fun FullPlayerScreen(
                 }
             }
 
-            // Controls
+            // 3D Transport Controls
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Main transport controls
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = onRandomStation) {
+                    IconButton(
+                        onClick = onRandomStation,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .glassCircle3D(elevation = 4.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Shuffle,
                             contentDescription = "Aleatorio",
                             tint = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
 
-                    IconButton(onClick = onPreviousStation) {
+                    IconButton(
+                        onClick = onPreviousStation,
+                        modifier = Modifier
+                            .size(50.dp)
+                            .glassCircle3D(elevation = 5.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.SkipPrevious,
                             contentDescription = "Anterior",
                             tint = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(30.dp)
                         )
                     }
 
-                    FloatingActionButton(
-                        onClick = onTogglePlay,
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        shape = CircleShape,
-                        modifier = Modifier.size(68.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .orbButton3D(baseColor = MaterialTheme.colorScheme.primary, elevation = 14.dp)
+                            .clickable(onClick = onTogglePlay),
+                        contentAlignment = Alignment.Center
                     ) {
                         if (isBuffering) {
                             CircularProgressIndicator(
@@ -352,26 +394,37 @@ fun FullPlayerScreen(
                             Icon(
                                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                                 contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                                tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(38.dp)
                             )
                         }
                     }
 
-                    IconButton(onClick = onNextStation) {
+                    IconButton(
+                        onClick = onNextStation,
+                        modifier = Modifier
+                            .size(50.dp)
+                            .glassCircle3D(elevation = 5.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.SkipNext,
                             contentDescription = "Siguiente",
                             tint = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(30.dp)
                         )
                     }
 
-                    IconButton(onClick = onOpenSleepTimer) {
+                    IconButton(
+                        onClick = onOpenSleepTimer,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .glassCircle3D(elevation = 4.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Outlined.Timer,
                             contentDescription = "Temporizador de apagado",
                             tint = if (sleepSecondsLeft != null && sleepSecondsLeft > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
@@ -391,6 +444,10 @@ fun EqualizerDialog(
     onBassBoostChange: (Float) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val bandGains by com.example.util.RadioAudioDspEngine.bandGainsDb.collectAsStateWithLifecycle()
+    val loudnessBoost by com.example.util.RadioAudioDspEngine.loudnessBoost.collectAsStateWithLifecycle()
+    val bandLabels = com.example.util.RadioAudioDspEngine.bandLabels
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -402,7 +459,14 @@ fun EqualizerDialog(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.GraphicEq, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(8.dp))
-                    Text("Ecualizador y Audio", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Column {
+                        Text("Ecualizador y Audio DSP", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            text = if (enabled) "Activo • Perfil: $selectedPreset" else "Desactivado (Audio plano)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 Switch(
                     checked = enabled,
@@ -412,8 +476,10 @@ fun EqualizerDialog(
         },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
                     text = "Perfil Acústico",
@@ -436,7 +502,8 @@ fun EqualizerDialog(
                                     Text(
                                         text = preset,
                                         modifier = Modifier.fillMaxWidth(),
-                                        textAlign = TextAlign.Center
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 1
                                     )
                                 },
                                 modifier = Modifier.weight(1f),
@@ -448,14 +515,76 @@ fun EqualizerDialog(
 
                 HorizontalDivider()
 
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                // 5-Band Biquad EQ Sliders
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Bandas de Frecuencia (5 Bandas DSP)",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    if (selectedPreset == "Personalizado") {
+                        Text(
+                            text = "Personalizado",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    bandLabels.forEachIndexed { index, freqLabel ->
+                        val gain = bandGains.getOrElse(index) { 0f }
+                        val formattedGain = if (gain > 0f) "+${String.format(java.util.Locale.US, "%.1f", gain)} dB"
+                        else "${String.format(java.util.Locale.US, "%.1f", gain)} dB"
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = freqLabel,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.width(46.dp)
+                            )
+                            Slider(
+                                value = gain,
+                                onValueChange = { com.example.util.RadioAudioDspEngine.setBandGainDb(index, it) },
+                                valueRange = -10f..10f,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(32.dp)
+                            )
+                            Text(
+                                text = formattedGain,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (gain != 0f && enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.End,
+                                modifier = Modifier.width(52.dp)
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider()
+
+                // Bass Boost
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Refuerzo de Graves (Bass Boost)",
+                            text = "Refuerzo de Graves (Sub-Bass)",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold
                         )
@@ -469,7 +598,35 @@ fun EqualizerDialog(
                     Slider(
                         value = bassBoostStrength,
                         onValueChange = onBassBoostChange,
-                        valueRange = 0f..1f
+                        valueRange = 0f..1f,
+                        modifier = Modifier.height(32.dp)
+                    )
+                }
+
+                // Loudness & Vocal Clarity Boost
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Claridad y Potencia HD (Preamp)",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${(loudnessBoost * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Slider(
+                        value = loudnessBoost,
+                        onValueChange = { com.example.util.RadioAudioDspEngine.setLoudnessBoost(it) },
+                        valueRange = 0f..1f,
+                        modifier = Modifier.height(32.dp)
                     )
                 }
             }
@@ -584,14 +741,34 @@ fun AddStationDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(
-                    value = faviconUrl,
-                    onValueChange = { faviconUrl = it },
-                    label = { Text("URL del logotipo / icono") },
-                    placeholder = { Text("https://...") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    StationLogo(
+                        stationName = name.ifBlank { "RD" },
+                        stationUrl = url,
+                        faviconUrl = faviconUrl,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                    )
+                    OutlinedTextField(
+                        value = faviconUrl,
+                        onValueChange = { faviconUrl = it },
+                        label = { Text("URL del logotipo o web (.png, .webp, .svg, .jpg, .gif, .ico)") },
+                        placeholder = { Text("https://... o www.miradio.com") },
+                        supportingText = {
+                            Text(
+                                "Acepta PNG, JPG, WebP, SVG, GIF, ICO, Base64 o el dominio web de la emisora.",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
                 OutlinedTextField(
                     value = genre,
                     onValueChange = { genre = it },
@@ -634,7 +811,8 @@ fun AddStationDialog(
             Button(
                 onClick = {
                     if (name.isNotBlank() && url.isNotBlank()) {
-                        onAddStation(name.trim(), url.trim(), faviconUrl.trim(), genre.trim(), country.trim(), region.trim(), province.trim(), district.trim())
+                        val cleanedLogo = com.example.util.LogoImageLoader.sanitizeLogoUrl(faviconUrl)
+                        onAddStation(name.trim(), url.trim(), cleanedLogo, genre.trim(), country.trim(), region.trim(), province.trim(), district.trim())
                     }
                 },
                 enabled = name.isNotBlank() && url.isNotBlank()

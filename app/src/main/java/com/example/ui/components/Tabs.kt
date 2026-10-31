@@ -37,6 +37,8 @@ import com.example.data.PlaybackHistory
 import com.example.data.RadioStation
 import com.example.ui.PlaybackStatus
 import com.example.ui.RadioViewModel
+import com.example.ui.theme.card3D
+import com.example.ui.theme.heroDashboard3D
 
 @Composable
 fun NavigationTabSwitcher(
@@ -634,11 +636,11 @@ fun SyncTab(
             .padding(bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Header Card with Live Stats
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+        // Header Card with Live Stats in 3D
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heroDashboard3D(shape = RoundedCornerShape(18.dp), elevation = 8.dp)
         ) {
             Column(
                 modifier = Modifier.padding(18.dp),
@@ -725,11 +727,11 @@ fun SyncTab(
             }
         }
 
-        // Direct Actions
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+        // Direct Actions in 3D Card
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .card3D(shape = RoundedCornerShape(18.dp), isSelectedOrPlaying = false, elevation = 6.dp)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -788,13 +790,14 @@ private fun StatBadgeCard(
     value: String,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
+    Box(
+        modifier = modifier
+            .card3D(shape = RoundedCornerShape(12.dp), isSelectedOrPlaying = false, elevation = 4.dp)
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 10.dp, horizontal = 6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp, horizontal = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(

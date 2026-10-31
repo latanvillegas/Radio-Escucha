@@ -22,7 +22,10 @@ import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.CommandButton
 import androidx.media3.session.LibraryResult
@@ -34,6 +37,8 @@ import com.example.data.MultiSourceRadioClients
 import com.example.data.RadioDatabase
 import com.example.data.RadioRepository
 import com.example.data.RadioStation
+import com.example.util.LogoImageLoader
+import com.example.util.RadioAudioDspEngine
 import com.example.util.StreamFormatHelper
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
@@ -80,15 +85,6 @@ class PlaybackService : MediaLibraryService() {
 
     private val artworkCache = android.util.LruCache<String, ByteArray>(24)
 
-    private val imageHttpClient by lazy {
-        OkHttpClient.Builder()
-            .connectTimeout(6, TimeUnit.SECONDS)
-            .readTimeout(8, TimeUnit.SECONDS)
-            .followRedirects(true)
-            .followSslRedirects(true)
-            .build()
-    }
-
     companion object {
         const val CUSTOM_COMMAND_PREVIOUS = "CUSTOM_COMMAND_PREVIOUS"
         const val CUSTOM_COMMAND_NEXT = "CUSTOM_COMMAND_NEXT"
@@ -111,6 +107,14 @@ class PlaybackService : MediaLibraryService() {
 
         private val BRACKET_ALBUM_REGEX = Regex("^(.*?)\\s*\\[([^]]+)]$")
         private val NON_ALPHANUM_REGEX = Regex("[^\\p{L}\\p{N}\\s-]")
+
+        private val FALLBACK_PALETTES = listOf(
+            intArrayOf(Color.parseColor("#6366F1"), Color.parseColor("#A855F7")),
+            intArrayOf(Color.parseColor("#EC4899"), Color.parseColor("#F43F5E")),
+            intArrayOf(Color.parseColor("#0EA5E9"), Color.parseColor("#2563EB")),
+            intArrayOf(Color.parseColor("#10B981"), Color.parseColor("#059669")),
+            intArrayOf(Color.parseColor("#F59E0B"), Color.parseColor("#EA580C"))
+        )
     }
 
     /**
@@ -187,8 +191,10 @@ class PlaybackService : MediaLibraryService() {
         override fun hasNextMediaItem(): Boolean = true
     }
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
+        RadioAudioDspEngine.init(this)
         val database = RadioDatabase.getDatabase(this)
         repository = RadioRepository(database.radioDao(), database.playbackHistoryDao())
 
@@ -207,7 +213,21 @@ class PlaybackService : MediaLibraryService() {
         val dataSourceFactory = DefaultDataSource.Factory(this, httpDataSourceFactory)
         val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
 
-        val player = ExoPlayer.Builder(this)
+        val renderersFactory = object : DefaultRenderersFactory(this) {
+            override fun buildAudioSink(
+                context: android.content.Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean
+            ): AudioSink {
+                return DefaultAudioSink.Builder(context)
+                    .setEnableFloatOutput(enableFloatOutput)
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .setAudioProcessors(arrayOf(RadioAudioDspEngine.pcmProcessor))
+                    .build()
+            }
+        }
+
+        val player = ExoPlayer.Builder(this, renderersFactory)
             .setMediaSourceFactory(mediaSourceFactory)
             .setLoadControl(loadControl)
             .setAudioAttributes(
@@ -221,12 +241,23 @@ class PlaybackService : MediaLibraryService() {
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
         StreamFormatHelper.applyAudioOnlyRadioMode(player)
+        RadioAudioDspEngine.bindAudioSession(player.audioSessionId)
         exoPlayer = player
 
         val wrappedPlayer = RadioNotificationPlayer(player)
         notificationPlayer = wrappedPlayer
 
         player.addListener(object : Player.Listener {
+            override fun onAudioSessionIdChanged(audioSessionId: Int) {
+                RadioAudioDspEngine.bindAudioSession(audioSessionId)
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY) {
+                    RadioAudioDspEngine.bindAudioSession(player.audioSessionId)
+                }
+            }
+
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 if (mediaItem == null) return
                 val extras = mediaItem.mediaMetadata.extras
@@ -633,49 +664,61 @@ class PlaybackService : MediaLibraryService() {
 
     private fun downloadImageBytes(url: String): ByteArray? {
         artworkCache.get(url)?.let { return it }
-        return try {
-            val request = Request.Builder()
-                .url(url)
-                .header("User-Agent", "Mozilla/5.0 (Android; OpenRadio/1.2)")
-                .build()
-            imageHttpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return null
-                val rawBytes = response.body?.bytes() ?: return null
-                val maxDim = 384
-
-                // First pass: decode bounds only without allocating pixel memory
-                val boundsOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, boundsOpts)
-                if (boundsOpts.outWidth <= 0 || boundsOpts.outHeight <= 0) return null
-
-                var sampleSize = 1
-                while (boundsOpts.outWidth / (sampleSize * 2) >= maxDim &&
-                    boundsOpts.outHeight / (sampleSize * 2) >= maxDim
-                ) {
-                    sampleSize *= 2
-                }
-
-                // Second pass: decode with subsampling
-                val decodeOpts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-                val decoded = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, decodeOpts) ?: return null
-
-                val bitmap = if (decoded.width > maxDim || decoded.height > maxDim) {
-                    val ratio = minOf(maxDim.toFloat() / decoded.width, maxDim.toFloat() / decoded.height)
-                    val targetW = (decoded.width * ratio).toInt().coerceAtLeast(1)
-                    val targetH = (decoded.height * ratio).toInt().coerceAtLeast(1)
-                    val scaled = Bitmap.createScaledBitmap(decoded, targetW, targetH, true)
-                    if (scaled !== decoded) decoded.recycle()
-                    scaled
-                } else {
-                    decoded
-                }
-                val stream = ByteArrayOutputStream()
-                bitmap.compress(Bitmap.CompressFormat.PNG, 90, stream)
-                bitmap.recycle()
-                val finalBytes = stream.toByteArray()
-                artworkCache.put(url, finalBytes)
-                finalBytes
+        val candidates = LogoImageLoader.buildCandidateUrls(url, currentStationUrl)
+        for (candidate in candidates) {
+            val bytes = downloadAndDecodeBitmapBytes(candidate)
+            if (bytes != null) {
+                artworkCache.put(url, bytes)
+                return bytes
             }
+        }
+        return null
+    }
+
+    private fun downloadAndDecodeBitmapBytes(candidateUrl: String): ByteArray? {
+        return try {
+            val rawBytes = LogoImageLoader.decodeDataUriIfPresent(candidateUrl) ?: run {
+                val request = Request.Builder()
+                    .url(candidateUrl)
+                    .build()
+                LogoImageLoader.okHttpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return null
+                    response.body?.bytes()
+                }
+            } ?: return null
+
+            val maxDim = 384
+
+            // First pass: decode bounds only without allocating pixel memory
+            val boundsOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, boundsOpts)
+            if (boundsOpts.outWidth <= 0 || boundsOpts.outHeight <= 0) return null
+
+            var sampleSize = 1
+            while (boundsOpts.outWidth / (sampleSize * 2) >= maxDim &&
+                boundsOpts.outHeight / (sampleSize * 2) >= maxDim
+            ) {
+                sampleSize *= 2
+            }
+
+            // Second pass: decode with subsampling
+            val decodeOpts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+            val decoded = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, decodeOpts) ?: return null
+
+            val bitmap = if (decoded.width > maxDim || decoded.height > maxDim) {
+                val ratio = minOf(maxDim.toFloat() / decoded.width, maxDim.toFloat() / decoded.height)
+                val targetW = (decoded.width * ratio).toInt().coerceAtLeast(1)
+                val targetH = (decoded.height * ratio).toInt().coerceAtLeast(1)
+                val scaled = Bitmap.createScaledBitmap(decoded, targetW, targetH, true)
+                if (scaled !== decoded) decoded.recycle()
+                scaled
+            } else {
+                decoded
+            }
+            val stream = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.PNG, 90, stream)
+            bitmap.recycle()
+            stream.toByteArray()
         } catch (_: Exception) {
             null
         }
@@ -689,14 +732,7 @@ class PlaybackService : MediaLibraryService() {
             val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
 
-            val palettes = listOf(
-                intArrayOf(Color.parseColor("#6366F1"), Color.parseColor("#A855F7")),
-                intArrayOf(Color.parseColor("#EC4899"), Color.parseColor("#F43F5E")),
-                intArrayOf(Color.parseColor("#0EA5E9"), Color.parseColor("#2563EB")),
-                intArrayOf(Color.parseColor("#10B981"), Color.parseColor("#059669")),
-                intArrayOf(Color.parseColor("#F59E0B"), Color.parseColor("#EA580C"))
-            )
-            val palette = palettes[abs(stationName.hashCode()) % palettes.size]
+            val palette = FALLBACK_PALETTES[abs(stationName.hashCode()) % FALLBACK_PALETTES.size]
 
             val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 shader = LinearGradient(
@@ -857,6 +893,7 @@ class PlaybackService : MediaLibraryService() {
         serviceSleepTimerJob?.cancel()
         metadataEnrichJob?.cancel()
         stationArtworkJob?.cancel()
+        RadioAudioDspEngine.release()
         mediaLibrarySession?.run {
             player.release()
             release()

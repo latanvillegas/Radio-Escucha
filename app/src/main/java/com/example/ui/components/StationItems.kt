@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -28,6 +29,8 @@ import com.example.data.PlaybackHistory
 import com.example.data.RadioStation
 import com.example.ui.PlaybackStatus
 import com.example.ui.theme.LocalIconScale
+import com.example.ui.theme.card3D
+import com.example.ui.theme.glassCircle3D
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -43,18 +46,16 @@ fun StationItem(
     onShare: (RadioStation) -> Unit
 ) {
     val iconScale = LocalIconScale.current
-    Card(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
+            .card3D(
+                shape = RoundedCornerShape(16.dp),
+                isSelectedOrPlaying = isPlaying,
+                elevation = if (isPlaying) 9.dp else 4.dp
+            )
             .clickable { onSelect(station) }
-            .testTag("station_card_${station.id}"),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isPlaying) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        ),
-        border = if (isPlaying) {
-            androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
-        } else null
+            .testTag("station_card_${station.id}")
     ) {
         Row(
             modifier = Modifier
@@ -62,10 +63,16 @@ fun StationItem(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Radio thumbnail with profile logo or icon
+            // 3D Raised Radio Thumbnail
             Box(
                 modifier = Modifier
                     .size(44.dp)
+                    .shadow(
+                        elevation = 5.dp,
+                        shape = RoundedCornerShape(12.dp),
+                        ambientColor = MaterialTheme.colorScheme.primary,
+                        spotColor = MaterialTheme.colorScheme.primary
+                    )
                     .clip(RoundedCornerShape(12.dp))
                     .background(
                         if (isPlaying) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
@@ -115,7 +122,7 @@ fun StationItem(
                     text = station.name,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
+                        color = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -150,7 +157,7 @@ fun StationItem(
                         Text(
                             text = geoLabel,
                             style = MaterialTheme.typography.bodySmall.copy(
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                                 fontSize = 11.sp
                             ),
                             maxLines = 1,
@@ -171,8 +178,8 @@ fun StationItem(
                 Icon(
                     Icons.Default.Share,
                     contentDescription = "Compartir radio",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.size(22.dp * iconScale)
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                    modifier = Modifier.size(20.dp * iconScale)
                 )
             }
 
@@ -185,8 +192,8 @@ fun StationItem(
                 Icon(
                     if (station.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                     contentDescription = if (station.isFavorite) "Quitar de favoritos" else "Agregar a favoritos",
-                    tint = if (station.isFavorite) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.size(24.dp * iconScale)
+                    tint = if (station.isFavorite) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                    modifier = Modifier.size(22.dp * iconScale)
                 )
             }
 
@@ -200,7 +207,7 @@ fun StationItem(
                     Icon(
                         Icons.Default.Delete,
                         contentDescription = "Eliminar radio",
-                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f)
                     )
                 }
             }
@@ -285,7 +292,7 @@ fun StationsList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("stations_lazy_list"),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(7.dp),
                     contentPadding = contentPadding
                 ) {
                     items(
@@ -320,18 +327,16 @@ fun RadioBrowserStationItem(
     onShare: (RadioStation) -> Unit
 ) {
     val iconScale = LocalIconScale.current
-    Card(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
+            .card3D(
+                shape = RoundedCornerShape(16.dp),
+                isSelectedOrPlaying = isPlaying,
+                elevation = if (isPlaying) 9.dp else 4.dp
+            )
             .clickable { onSelect(station) }
-            .testTag("radio_browser_item_${station.id}"),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isPlaying) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        ),
-        border = if (isPlaying) {
-            androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
-        } else null
+            .testTag("radio_browser_item_${station.id}")
     ) {
         Row(
             modifier = Modifier
@@ -342,6 +347,12 @@ fun RadioBrowserStationItem(
             Box(
                 modifier = Modifier
                     .size(48.dp)
+                    .shadow(
+                        elevation = 5.dp,
+                        shape = RoundedCornerShape(12.dp),
+                        ambientColor = MaterialTheme.colorScheme.primary,
+                        spotColor = MaterialTheme.colorScheme.primary
+                    )
                     .clip(RoundedCornerShape(12.dp))
                     .background(
                         if (isPlaying) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
@@ -389,7 +400,7 @@ fun RadioBrowserStationItem(
                     text = station.name,
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
+                        color = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -416,7 +427,7 @@ fun RadioBrowserStationItem(
                         Text(
                             text = station.country,
                             style = MaterialTheme.typography.bodySmall.copy(
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                                 fontSize = 11.sp
                             ),
                             maxLines = 1,
@@ -435,8 +446,8 @@ fun RadioBrowserStationItem(
                 Icon(
                     Icons.Default.Share,
                     contentDescription = "Compartir radio",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.size(22.dp * iconScale)
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                    modifier = Modifier.size(20.dp * iconScale)
                 )
             }
 
@@ -449,8 +460,8 @@ fun RadioBrowserStationItem(
                 Icon(
                     if (isSaved) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
                     contentDescription = if (isSaved) "Guardada" else "Guardar radio",
-                    tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.size(24.dp * iconScale)
+                    tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                    modifier = Modifier.size(22.dp * iconScale)
                 )
             }
         }
@@ -466,15 +477,12 @@ fun HistoryItem(
     val dateFormat = remember { SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()) }
     val formattedDate = remember(historyItem.timestamp) { dateFormat.format(Date(historyItem.timestamp)) }
 
-    Card(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
+            .card3D(shape = RoundedCornerShape(14.dp), isSelectedOrPlaying = false, elevation = 3.dp)
             .clickable { onSelect() }
-            .testTag("history_item_${historyItem.id}"),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        )
+            .testTag("history_item_${historyItem.id}")
     ) {
         Row(
             modifier = Modifier
@@ -485,6 +493,7 @@ fun HistoryItem(
             Box(
                 modifier = Modifier
                     .size(40.dp)
+                    .shadow(4.dp, RoundedCornerShape(8.dp))
                     .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
                 contentAlignment = Alignment.Center

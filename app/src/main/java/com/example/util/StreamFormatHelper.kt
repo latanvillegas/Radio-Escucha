@@ -25,15 +25,7 @@ import java.util.concurrent.TimeUnit
 object StreamFormatHelper {
 
     private val resolvedUrlCache = LruCache<String, String>(64)
-
-    private val httpClient by lazy {
-        OkHttpClient.Builder()
-            .connectTimeout(6, TimeUnit.SECONDS)
-            .readTimeout(6, TimeUnit.SECONDS)
-            .followRedirects(true)
-            .followSslRedirects(true)
-            .build()
-    }
+    private val PLAYLIST_URL_REGEX = Regex("(https?://[^\"'<>\\s]+)", RegexOption.IGNORE_CASE)
 
     /**
      * Configures ExoPlayer so that Live TV streams (.m3u8 / .mpd / .ts) operate in
@@ -129,7 +121,7 @@ object StreamFormatHelper {
                     .url(normalized)
                     .header("User-Agent", "OpenRadio/1.2 (Android)")
                     .build()
-                httpClient.newCall(request).execute().use { response ->
+                LogoImageLoader.okHttpClient.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) return@withContext normalized
                     val body = response.body?.string()?.take(16_384).orEmpty()
                     val extracted = parsePlaylistBody(body)
@@ -163,7 +155,7 @@ object StreamFormatHelper {
             }
             // .asx / .xspf format: href="https://..." or <location>https://...</location>
             if (line.contains("http://", ignoreCase = true) || line.contains("https://", ignoreCase = true)) {
-                val urlMatch = Regex("(https?://[^\"'<>\\s]+)", RegexOption.IGNORE_CASE).find(line)
+                val urlMatch = PLAYLIST_URL_REGEX.find(line)
                 if (urlMatch != null) {
                     return urlMatch.groupValues[1]
                 }

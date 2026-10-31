@@ -1,10 +1,5 @@
 package com.example.ui
 
-import android.content.Context
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,19 +9,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,6 +23,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.AppFontSize
 import com.example.data.AppIconSize
 import com.example.data.AppTheme
+import com.example.ui.theme.Surface3D
+import com.example.ui.theme.card3D
+import com.example.ui.theme.glassCircle3D
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,29 +33,22 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     onBack: () -> Unit
 ) {
-    val context = LocalContext.current
     val currentTheme by viewModel.appTheme.collectAsStateWithLifecycle()
     val currentFontSize by viewModel.appFontSize.collectAsStateWithLifecycle()
     val currentIconSize by viewModel.appIconSize.collectAsStateWithLifecycle()
 
-    val exportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/json")
-    ) { uri: Uri? ->
-        uri?.let { viewModel.exportFavorites(context, it) }
-    }
-
-    val importLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        uri?.let { viewModel.importFavorites(context, it) }
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Ajustes", fontWeight = FontWeight.Bold) },
+                title = { Text("Ajustes 3D", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .size(36.dp)
+                            .glassCircle3D(elevation = 4.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Atrás"
@@ -71,24 +56,25 @@ fun SettingsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
+                    containerColor = Color.Transparent,
                     titleContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
-        }
+        },
+        containerColor = Color.Transparent,
+        modifier = Modifier.background(Surface3D.ambientScreenBrush())
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(MaterialTheme.colorScheme.background)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             // Theme section
-            SettingsSection(title = "Tema Visual") {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsSection(title = "Tema Visual y Colores 3D") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     AppTheme.entries.forEach { theme ->
                         SelectionOption(
                             title = theme.displayName,
@@ -133,30 +119,12 @@ fun SettingsScreen(
                 }
             }
 
-            // Backup / Export
-            SettingsSection(title = "Copia de Seguridad de Favoritos") {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SettingsActionItem(
-                        icon = Icons.Default.FileDownload,
-                        title = "Exportar favoritos",
-                        subtitle = "Guardar tus estaciones favoritas en un archivo JSON",
-                        onClick = { exportLauncher.launch("mis_radios_favoritas.json") }
-                    )
-                    SettingsActionItem(
-                        icon = Icons.Default.FileUpload,
-                        title = "Importar favoritos",
-                        subtitle = "Restaurar estaciones desde un archivo JSON",
-                        onClick = { importLauncher.launch(arrayOf("application/json")) }
-                    )
-                }
-            }
-
             // About section
             SettingsSection(title = "Acerca de") {
                 SettingsInfoItem(
                     icon = Icons.Default.Info,
-                    title = "Radio App",
-                    value = "Versión 1.0.0"
+                    title = "OpenRadio 3D",
+                    value = "Versión 1.3.0"
                 )
             }
         }
@@ -172,9 +140,9 @@ fun SettingsSection(
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 8.dp)
+            modifier = Modifier.padding(bottom = 10.dp)
         )
         content()
     }
@@ -186,25 +154,28 @@ fun SelectionOption(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        border = if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .card3D(
+                shape = RoundedCornerShape(14.dp),
+                isSelectedOrPlaying = isSelected,
+                elevation = if (isSelected) 8.dp else 3.dp
+            )
+            .clickable(onClick = onClick)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
             )
             if (isSelected) {
                 Icon(
@@ -224,66 +195,27 @@ fun CompactSelectionOption(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
-        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        border = if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
+    Box(
+        modifier = modifier
+            .card3D(
+                shape = RoundedCornerShape(12.dp),
+                isSelectedOrPlaying = isSelected,
+                elevation = if (isSelected) 7.dp else 3.dp
+            )
+            .clickable(onClick = onClick)
     ) {
         Box(
-            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 11.dp, horizontal = 4.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp),
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-    }
-}
-
-@Composable
-fun SettingsActionItem(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
         }
     }
 }
@@ -294,10 +226,10 @@ fun SettingsInfoItem(
     title: String,
     value: String
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .card3D(shape = RoundedCornerShape(14.dp), isSelectedOrPlaying = false, elevation = 4.dp)
     ) {
         Row(
             modifier = Modifier
@@ -317,14 +249,15 @@ fun SettingsInfoItem(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
             Text(
                 text = value,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
             )
         }
     }

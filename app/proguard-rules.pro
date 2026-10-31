@@ -24,3 +24,10 @@
 # Media3 / ExoPlayer
 -dontwarn androidx.media3.**
 -keep class androidx.media3.** { *; }
+
+# Coil & SVG / GIF Decoders
+-dontwarn coil.**
+-dontwarn com.caverock.androidsvg.**
+-keep class com.caverock.androidsvg.** { *; }
+-keep class coil.util.** { *; }
+
