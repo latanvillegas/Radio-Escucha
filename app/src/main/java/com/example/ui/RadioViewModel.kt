@@ -32,6 +32,7 @@ import com.example.data.RadioStation
 import com.example.service.PlaybackService
 import com.example.util.ConnectivityObserver
 import com.example.util.NetworkConnectivityObserver
+import com.example.util.StreamFormatHelper
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import com.squareup.moshi.Moshi
@@ -279,7 +280,9 @@ class RadioViewModel(
             .setMediaSourceFactory(mediaSourceFactory)
             .setLoadControl(loadControl)
             .setHandleAudioBecomingNoisy(true)
-            .build()
+            .build().also {
+                StreamFormatHelper.applyAudioOnlyRadioMode(it)
+            }
         setupPlayerListener(localPlayer)
     }
 
@@ -595,33 +598,39 @@ class RadioViewModel(
             repository.insertHistory(station)
         }
 
-        val extras = Bundle().apply {
-            putString("station_name", station.name)
-            putString("station_genre", station.genre)
-            putString("station_url", station.url)
-            putString("station_country", station.country)
-            putString("station_region", station.region)
-            putString("station_favicon", station.faviconUrl)
-        }
+        viewModelScope.launch {
+            val playableUrl = StreamFormatHelper.resolvePlayableStreamUrl(station.url)
+            val extras = Bundle().apply {
+                putString("station_name", station.name)
+                putString("station_genre", station.genre)
+                putString("station_url", playableUrl)
+                putString("station_country", station.country)
+                putString("station_region", station.region)
+                putString("station_favicon", station.faviconUrl)
+            }
 
-        val mediaItem = MediaItem.Builder()
-            .setMediaId(station.id.toString())
-            .setUri(station.url)
-            .setMediaMetadata(
-                MediaMetadata.Builder()
-                    .setStation(station.name)
-                    .setSubtitle(station.genre)
-                    .setGenre(station.genre)
-                    .setArtworkUri(if (station.faviconUrl.isNotBlank()) Uri.parse(station.faviconUrl) else null)
-                    .setExtras(extras)
-                    .build()
+            val metadata = MediaMetadata.Builder()
+                .setStation(station.name)
+                .setSubtitle(station.genre)
+                .setGenre(station.genre)
+                .setArtworkUri(if (station.faviconUrl.isNotBlank()) Uri.parse(station.faviconUrl) else null)
+                .setExtras(extras)
+                .build()
+
+            val mediaItem = StreamFormatHelper.buildMediaItem(
+                mediaId = station.id.toString(),
+                streamUrl = playableUrl,
+                mediaMetadata = metadata
             )
-            .build()
 
-        val player = getActivePlayer()
-        player?.setMediaItem(mediaItem)
-        player?.prepare()
-        player?.play()
+            val player = getActivePlayer()
+            if (player != null) {
+                StreamFormatHelper.applyAudioOnlyRadioMode(player)
+                player.setMediaItem(mediaItem)
+                player.prepare()
+                player.play()
+            }
+        }
     }
 
     fun togglePlayPause() {

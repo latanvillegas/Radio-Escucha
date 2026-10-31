@@ -34,6 +34,7 @@ import com.example.data.MultiSourceRadioClients
 import com.example.data.RadioDatabase
 import com.example.data.RadioRepository
 import com.example.data.RadioStation
+import com.example.util.StreamFormatHelper
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -219,6 +220,7 @@ class PlaybackService : MediaLibraryService() {
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
+        StreamFormatHelper.applyAudioOnlyRadioMode(player)
         exoPlayer = player
 
         val wrappedPlayer = RadioNotificationPlayer(player)
@@ -758,30 +760,30 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
-    private fun mapStationToMediaItem(station: RadioStation): MediaItem {
+    private fun mapStationToMediaItem(station: RadioStation, resolvedUrl: String = station.url): MediaItem {
         val extras = Bundle().apply {
             putString("station_name", station.name)
             putString("station_genre", station.genre)
-            putString("station_url", station.url)
+            putString("station_url", resolvedUrl)
             putString("station_country", station.country)
             putString("station_region", station.region)
             putString("station_favicon", station.faviconUrl)
         }
-        return MediaItem.Builder()
-            .setMediaId(station.id.toString())
-            .setUri(station.url)
-            .setMediaMetadata(
-                MediaMetadata.Builder()
-                    .setStation(station.name)
-                    .setSubtitle(station.genre)
-                    .setGenre(station.genre)
-                    .setArtworkUri(if (station.faviconUrl.isNotBlank()) Uri.parse(station.faviconUrl) else null)
-                    .setExtras(extras)
-                    .setIsBrowsable(false)
-                    .setIsPlayable(true)
-                    .build()
-            )
+        val metadata = MediaMetadata.Builder()
+            .setStation(station.name)
+            .setSubtitle(station.genre)
+            .setGenre(station.genre)
+            .setArtworkUri(if (station.faviconUrl.isNotBlank()) Uri.parse(station.faviconUrl) else null)
+            .setExtras(extras)
+            .setIsBrowsable(false)
+            .setIsPlayable(true)
             .build()
+
+        return StreamFormatHelper.buildMediaItem(
+            mediaId = station.id.toString(),
+            streamUrl = resolvedUrl,
+            mediaMetadata = metadata
+        )
     }
 
     private fun toggleFavorite() {
@@ -837,7 +839,8 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private suspend fun playStationInService(station: RadioStation) {
-        val mediaItem = mapStationToMediaItem(station)
+        val playableUrl = StreamFormatHelper.resolvePlayableStreamUrl(station.url)
+        val mediaItem = mapStationToMediaItem(station, playableUrl)
         exoPlayer?.setMediaItem(mediaItem)
         exoPlayer?.prepare()
         exoPlayer?.play()

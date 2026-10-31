@@ -573,8 +573,14 @@ fun AddStationDialog(
                 OutlinedTextField(
                     value = url,
                     onValueChange = { url = it },
-                    label = { Text("URL del stream *") },
-                    placeholder = { Text("https://...") },
+                    label = { Text("URL del stream (Radio o TV en Modo Radio) *") },
+                    placeholder = { Text("https://... (.m3u8, .mp3, .aac, .pls, .m3u, .mpd)") },
+                    supportingText = {
+                        Text(
+                            "Soporta Icecast/Shoutcast (.mp3/.aac/.ogg), HLS (.m3u8), DASH (.mpd), listas (.pls/.m3u) y canales de TV en modo solo audio.",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
