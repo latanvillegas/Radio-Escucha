@@ -52,12 +52,14 @@ class RadioRepository(
             return
         }
 
-        // Remove legacy duplicate placeholders that were replaced by full Cajamarca metadata
-        current.filter {
-            (it.name == "La Cheverísima" && it.region == "Regional") ||
-                (it.name == "Radio Activa" && it.region == "Regional")
-        }.forEach { legacy ->
-            radioDao.deleteStation(legacy)
+        // Remove deprecated stations ("quitar estas radios") and legacy renamed duplicates
+        val removedNamesLower = REMOVED_AND_LEGACY_STATION_NAMES.map { it.lowercase() }.toSet()
+        current.filter { station ->
+            station.name.trim().lowercase() in removedNamesLower ||
+                (station.name == "La Cheverísima" && station.region == "Regional") ||
+                (station.name == "Radio Activa" && station.region == "Regional")
+        }.forEach { toDelete ->
+            radioDao.deleteStation(toDelete)
         }
 
         val refreshedCurrent = radioDao.getAllStations().first()
@@ -74,12 +76,17 @@ class RadioRepository(
             if (existing == null) {
                 missingToInsert.add(def)
             } else if (
-                (existing.faviconUrl.isBlank() && def.faviconUrl.isNotBlank()) ||
-                (existing.province.isBlank() && def.province.isNotBlank()) ||
-                (existing.district.isBlank() && def.district.isNotBlank())
+                existing.url != def.url ||
+                existing.faviconUrl != def.faviconUrl ||
+                existing.genre != def.genre ||
+                existing.country != def.country ||
+                existing.region != def.region ||
+                existing.province != def.province ||
+                existing.district != def.district
             ) {
                 radioDao.updateStation(
                     existing.copy(
+                        name = def.name,
                         url = def.url,
                         genre = def.genre,
                         country = def.country,
@@ -98,9 +105,51 @@ class RadioRepository(
     }
 
     companion object {
+        // List of stations explicitly requested to be removed + legacy duplicate names
+        val REMOVED_AND_LEGACY_STATION_NAMES = listOf(
+            // Explicitly requested to remove ("quitar estas radios")
+            "Abriendo Surcos",
+            "Radio Abriendo Surcos",
+            "Acción Cristiana",
+            "Acqua",
+            "DW Español",
+            "RFI Español (96k)",
+            "RFI Español",
+            "RNE 5 (España)",
+            "RNE 5 España",
+            "RNE Radio Clásica",
+            "Radio ABC",
+            "Radio ABC (San Luis)",
+            "Radio ABC (Taxco)",
+            "ABC 760",
+            "ABC Radio Puebla",
+            "ABC 94.7",
+            "ABC Radio 760 SOY",
+            "Radio Continente",
+            "Radio Inica Digital",
+            "Radio La Hondureña",
+            "Radio Hondureña",
+            "Radio Mía",
+            "Radio Patrón",
+            "Radio TV El Shaddai",
+            "Radio Tele Taxi",
+            // Legacy names replaced by updated names in the new list
+            "Disney FM",
+            "Arceri",
+            "Actitud",
+            "Acción FM",
+            "Aclo Tarija",
+            "Estéreo Abejorral",
+            "Radio Acceso Total",
+            "Una Radio Viva Voz",
+            "Radio ES",
+            "Cadena COPE",
+            "105.3 El Ritmo"
+        )
+
         fun getDefaultStations(): List<RadioStation> {
             return listOf(
-                // === Emisoras de Cajamarca, Perú (Catálogo Satelital Web) ===
+                // === 1. Emisoras de Cajamarca, Perú (Catálogo Satelital Web) ===
                 RadioStation(
                     id = 0,
                     name = "Radio La Cheverísima 88.3 FM",
@@ -635,50 +684,425 @@ class RadioRepository(
                     faviconUrl = "https://www.estacionesfm.com/logos_radio/fm_radios_174.png"
                 ),
 
-                // === Emisoras Internacionales y Regionales Adicionales ===
-                RadioStation(0, "La Mega", "https://eu1.lhdserver.es:9007/stream", "Pop / Rock", false, true, "Venezuela", "Nacional"),
-                RadioStation(0, "Disney FM", "https://27433.live.streamtheworld.com/DISNEY_PER_LM_SC", "Infantil", false, false, "Perú", "Lima"),
-                RadioStation(0, "Acqua", "https://sonic-us.streaming-chile.com:7006/", "Variada", false, true, "Argentina", "Mar del Plata"),
-                RadioStation(0, "Acqua 100.1", "https://strcdn.klm99.com:10983/acquapinamar", "Variada", false, false, "Argentina", "Villa Gesell"),
-                RadioStation(0, "Arceri", "https://stream-178.zeno.fm/rmnr2cphyxhvv", "Variada", false, true, "Costa Rica", "Aserrín"),
-                RadioStation(0, "Actitud", "https://radioenhd.com:8088/", "Variada", false, true, "México", "San Felipe"),
-                RadioStation(0, "Actitud 100.9 FM", "https://ss.redradios.net:8002/stream", "Variada", false, true, "Guatemala", "Ciudad de Guatemala"),
-                RadioStation(0, "Radio Continente", "https://sonic6.my-servers.org/10170/", "Variada", false, true, "Perú", "Regional"),
-                RadioStation(0, "Radio TV El Shaddai", "https://stream.zeno.fm/ppr5q4q3x1zuv", "Religiosa", false, true, "Perú", "Regional"),
-                RadioStation(0, "Radio Inica Digital", "https://stream.zeno.fm/487vgx80yuhvv", "Variada", false, true, "Perú", "Regional"),
-                RadioStation(0, "Radio Mía", "https://streaming.zonalatinaeirl.com:8020/radio", "Variada", false, true, "Perú", "Regional"),
-                RadioStation(0, "Radio Patrón", "https://streaming.zonalatinaeirl.com:8010/radio", "Variada", false, true, "Perú", "Regional"),
-                RadioStation(0, "Radio TV Sureña", "https://stream.zeno.fm/p7d5fpx4xnhvv", "Variada", false, true, "Perú", "Regional"),
-                RadioStation(0, "Radio Enamorados", "https://stream.zeno.fm/gnybbqc1fnruv", "Baladas / Romántica", false, true, "Perú", "Regional"),
-                RadioStation(0, "Radio ABC (San Luis)", "https://16643.live.streamtheworld.com/XHCZFM.mp3", "Variada", false, true, "México", "Norteamérica"),
-                RadioStation(0, "Radio ABC (Taxco)", "https://streaming.servicioswebmx.com/8288/stream", "Variada", false, true, "México", "Norteamérica"),
-                RadioStation(0, "ABC 760", "https://streamingcwsradio30.com/8292/stream", "Variada", false, true, "México", "Norteamérica"),
-                RadioStation(0, "ABC Radio Puebla", "https://streaming.servicioswebmx.com/8264/stream", "Variada", false, true, "México", "Norteamérica"),
-                RadioStation(0, "Radio Acceso Total", "https://us10a.serverse.com/proxy/acce8712?mp=/", "Variada", false, true, "México", "Norteamérica"),
-                RadioStation(0, "Ach Kuxlejal 100.3", "https://stream-178.zeno.fm/md6tfkaaechvv", "Variada", false, true, "México", "Norteamérica"),
-                RadioStation(0, "ABC 94.7", "https://stream-176.zeno.fm/n03jc4xoy63tv", "Variada", false, true, "Argentina", "Sudamérica"),
-                RadioStation(0, "Estéreo Abejorral", "https://icecasthd.net/proxy/abejorral/live", "Variada", false, true, "Colombia", "Sudamérica"),
-                RadioStation(0, "Abriendo Surcos", "https://djp.sytes.net/public/abriendo_surcos", "Variada", false, true, "Colombia", "Sudamérica"),
-                RadioStation(0, "Acacio de Chile", "https://sonic.portalfoxmix.cl:7057/", "Variada", false, true, "Chile", "Sudamérica"),
-                RadioStation(0, "Acción FM", "https://stream-intervalohost.com:7008/stream", "Variada", false, true, "Venezuela", "Sudamérica"),
-                RadioStation(0, "Aclo Chuquisaca", "https://cloudstream2030.conectarhosting.com/8192/stream", "Variada", false, true, "Bolivia", "Sudamérica"),
-                RadioStation(0, "Aclo Tarija", "https://cloudstream2030.conectarhosting.com/8242/stream", "Variada", false, true, "Bolivia", "Sudamérica"),
-                RadioStation(0, "Radio La Hondureña", "https://s2.mkservers.space/rih", "Variada", false, true, "Honduras", "Centroamérica"),
-                RadioStation(0, "Abriendo Los Cielos", "https://stream-177.zeno.fm/a8uwe88svy8uv", "Religiosa", false, true, "Honduras", "Centroamérica"),
-                RadioStation(0, "Una Radio Viva Voz", "https://rr5100.globalhost1.com/8006/stream", "Variada", false, true, "Nicaragua", "Centroamérica"),
-                RadioStation(0, "105.3 El Ritmo", "https://n02b-e2.revma.ihrhls.com/zc3209/hls.m3u8", "Latina", false, true, "EE.UU", "Norteamérica"),
-                RadioStation(0, "Acción Cristiana", "https://panel.lifestreammedia.net:8162/stream", "Religiosa", false, true, "EE.UU", "Norteamérica"),
-                RadioStation(0, "RFI Internacional", "https://rfienespagnol64k.ice.infomaniak.ch/rfienespagnol-64.mp3", "Noticias", false, true, "Francia", "Europa"),
-                RadioStation(0, "RFI Español (96k)", "https://rfiespagnol96k.ice.infomaniak.ch/rfiespagnol-96k.mp3", "Noticias", false, true, "Francia", "Europa"),
-                RadioStation(0, "DW Español", "https://dwstream6-lh.akamaihd.net/i/dwstream6_live@123544/master.m3u8", "Noticias", false, true, "Alemania", "Europa"),
-                RadioStation(0, "RNE 5 (España)", "https://dispatcher.rndfnk.com/crtve/rne5/main/mp3/high?aggregator=tunein", "Noticias", false, true, "España", "Europa"),
-                RadioStation(0, "RNE Radio Clásica", "https://rnelivestream.rtve.es/rnerc/main/master.m3u8", "Clásica", false, true, "España", "Europa"),
-                RadioStation(0, "RNE Radio Nacional", "https://f141.rndfnk.com/star/crtve/rne1/nav/mp3/128/ct/stream.mp3", "Noticias", false, true, "España", "Europa"),
-                RadioStation(0, "Radio AFRONTAR", "https://vigo-copesedes-rrcast.flumotion.com/copesedes/vigo-low.mp3", "Variada", false, true, "España", "Europa"),
-                RadioStation(0, "AB 95 FM", "https://stream-153.zeno.fm/szskq9dxs98uv", "Variada", false, true, "España", "Europa"),
-                RadioStation(0, "Radio Tele Taxi", "https://radiott-web.streaming-pro.com:6103/radiott.mp3", "Variada", false, true, "España", "Europa"),
-                RadioStation(0, "Radio ES", "https://libertaddigital-radio-live1.flumotion.com/libertaddigital/ld-live1-low.mp3", "Noticias", false, true, "España", "Europa"),
-                RadioStation(0, "Cadena COPE", "https://net1-cope-rrcast.flumotion.com/cope/net1-low.mp3", "Noticias", false, true, "España", "Europa")
+                // === 2. Emisoras Nacionales de Perú (Lima y Puno) ===
+                RadioStation(
+                    id = 0,
+                    name = "Radio Corazón",
+                    url = "https://mdstrm.com/audio/5fada514fc16c006bd63370f/live.m3u8",
+                    genre = "Romántica / Bachata / Latina",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Perú",
+                    region = "Lima",
+                    province = "Lima",
+                    district = "Lima",
+                    faviconUrl = "https://static2.mytuner.mobi/media/tvos_radios/eLk5CpPL4E.png"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "La Zona",
+                    url = "https://mdstrm.com/audio/5fada54116646e098d97e6a5/live.m3u8",
+                    genre = "Reggaetón / Trap / Salsa / Bachata",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Perú",
+                    region = "Lima",
+                    province = "Lima",
+                    district = "Lima",
+                    faviconUrl = "https://cdn.radoxo.com/images/peru/la-zona.webp?v=1793211895"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Radio Disney",
+                    url = "https://24283.live.streamtheworld.com/DISNEY_PER_LM_SC",
+                    genre = "Reggaetón / Baladas / Romántica",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Perú",
+                    region = "Lima",
+                    province = "Lima",
+                    district = "Lima",
+                    faviconUrl = "https://md1.rpp-noticias.io/180x180/cutter/2026/02/05/1770305772.jpg"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Radio Enamorados",
+                    url = "https://stream.zeno.fm/gnybbqc1fnruv",
+                    genre = "Baladas / Romántica",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Perú",
+                    region = "Lima",
+                    province = "Lima",
+                    district = "Lima",
+                    faviconUrl = "https://play.emisorasperu.com/radio-enamorados/assets/logo-radio-enamorados.png"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Radio del Amor",
+                    url = "https://stream.zeno.fm/dzed0u64gd0uv",
+                    genre = "Romántica / Baladas",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Perú",
+                    region = "Lima",
+                    province = "Lima",
+                    district = "Lima",
+                    faviconUrl = "https://play.emisorasperu.com/radio-enamorados/images/delamor_cover.png"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Retro Ritmos Latinos",
+                    url = "https://stream.zeno.fm/b10btvx2dxhvv",
+                    genre = "Pop Latino / Clásicos",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Perú",
+                    region = "Lima",
+                    province = "Lima",
+                    district = "Lima",
+                    faviconUrl = "https://latino.radioretroperu.com/assets/logo_web.png"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Retro Baladas en Inglés",
+                    url = "https://stream.zeno.fm/xy5zqsdnnnruv",
+                    genre = "Baladas en Inglés / Power Ballads",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Perú",
+                    region = "Lima",
+                    province = "Lima",
+                    district = "Lima",
+                    faviconUrl = "https://static2.mytuner.mobi/media/tvos_radios/345/radio-retro-baladas-ingles.80a2b296.png"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Retro Baladas en Español",
+                    url = "https://stream.zeno.fm/zre2prvhaxwuv",
+                    genre = "Romántica / Baladas del Recuerdo",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Perú",
+                    region = "Lima",
+                    province = "Lima",
+                    district = "Lima",
+                    faviconUrl = "https://static2.mytuner.mobi/media/tvos_radios/001/radio-retro-baladas-en-espanol.bfd1a8fd.png"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "KPop Love Radio",
+                    url = "https://stream.zeno.fm/0gmdtr2rsf9uv",
+                    genre = "K-Pop / Romántica / Baladas",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Perú",
+                    region = "Lima",
+                    province = "Lima",
+                    district = "Lima",
+                    faviconUrl = "https://static2.mytuner.mobi/media/tvos_radios/007/kpop-love-radio.18317783.png"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Radio Cristianos",
+                    url = "https://stream.zeno.fm/erg33shws98uv",
+                    genre = "Alabanza y Adoración / Cristiana",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Perú",
+                    region = "Lima",
+                    province = "Lima",
+                    district = "Lima",
+                    faviconUrl = "https://play.emisorasperu.com/radio-cristianos/assets/cover.png"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Radio TV Sureña",
+                    url = "https://stream.zeno.fm/p7d5fpx4xnhvv",
+                    genre = "Cumbia Sureña / Folklore / Tropical",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Perú",
+                    region = "Puno",
+                    province = "Juliaca",
+                    district = "Juliaca",
+                    faviconUrl = "https://static.mytuner.mobi/media/radios-150px/347/radio-television-surena.a4ac4dca.jpg"
+                ),
+
+                // === 3. Emisoras Internacionales Actualizadas ===
+                RadioStation(
+                    id = 0,
+                    name = "ABC Radio en vivo 760",
+                    url = "https://streamingcwsradio30.com/8292/stream",
+                    genre = "Noticias / Deportes / Variado",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "México",
+                    region = "Puebla",
+                    province = "Puebla",
+                    district = "Puebla",
+                    faviconUrl = "https://static.mytuner.mobi/media/tvos_radios/111/abc-radio-mexico.b96e68da.png"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "AB 95 FM",
+                    url = "https://stream.zenolive.com/szskq9dxs98uv",
+                    genre = "Pop / Reggaetón",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "España",
+                    region = "Castilla-La Mancha",
+                    province = "La Mancha",
+                    district = "Albacete",
+                    faviconUrl = "https://static.mytuner.mobi/media/tvos_radios/t9KXQMbxpy.png"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Abriendo Los Cielos",
+                    url = "https://stream-177.zeno.fm/a8uwe88svy8uv",
+                    genre = "Religiosa",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Honduras",
+                    region = "Honduras",
+                    province = "Honduras",
+                    district = "Honduras",
+                    faviconUrl = "https://images.zeno.fm/UrE_ePeN8Hk9iGUZkhDTXSqBpMDYAsDkhyn4M4xEkig/rs:fill:304:304/q:75/g:ce:0:0/aHR0cHM6Ly9wcm94eS56ZW5vLmZtL2NvbnRlbnQvc3RhdGlvbnMvYWd4emZucGxibTh0YzNSaGRITnlNZ3NTQ2tGMWRHaERiR2xsYm5RWWdJQ3dtWi11b2dvTUN4SU9VM1JoZEdsdmJsQnliMlpwYkdVWWdJQ3cyYldRalFvTW9nRUVlbVZ1YncvaW1hZ2UvP3U9MTcxNDA1MDU0MTAwMA"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Acacio de Chile",
+                    url = "https://sonic.portalfoxmix.cl:7057/",
+                    genre = "Folklore",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Chile",
+                    region = "Chile",
+                    province = "Chile",
+                    district = "Chile",
+                    faviconUrl = "https://radioacaciodechile.cl/radio/wp-content/uploads/2019/08/400x400.jpg"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Acción 100.1 FM",
+                    url = "https://stream-151.zeno.fm/4tcnaczn7bluv?zs=cHYcU1_WTzi5v-K0mW2ikA",
+                    genre = "Pop / Variada",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Venezuela",
+                    region = "Maracaibo",
+                    province = "Maracaibo",
+                    district = "Maracaibo",
+                    faviconUrl = "https://static.mytuner.mobi/media/radios-150px/wUXZPQCZNa.jpg"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Ach Kuxlejal 100.3",
+                    url = "https://stream-178.zeno.fm/md6tfkaaechvv",
+                    genre = "Religiosa",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "México",
+                    region = "México",
+                    province = "México",
+                    district = "México",
+                    faviconUrl = "https://images.zeno.fm/RJAtYoqbQ5NsaOH0_54mH5p5siY3lKl7qfiQ65Ta2ew/rs:fill:304:304/q:75/g:ce:0:0/aHR0cHM6Ly9wcm94eS56ZW5vLmZtL2NvbnRlbnQvc3RhdGlvbnMvYWd4emZucGxibTh0YzNSaGRITnlNZ3NTQ2tGMWRHaERiR2xsYm5RWWdJRHd6NDNvdVFzTUN4SU9VM1JoZEdsdmJsQnliMlpwYkdVWWdJRHd6NEtTa0FrTW9nRUVlbVZ1YncvaW1hZ2UvP3U9MTc4NzQyMjE4MTAwMA"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Aclo Chuquisaca",
+                    url = "https://cloudstream2030.conectarhosting.com/8192/stream",
+                    genre = "Noticias / Música Latina",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Bolivia",
+                    region = "Sucre",
+                    province = "Sucre",
+                    district = "Sucre",
+                    faviconUrl = "https://cdn.instant.audio/images/logos/radios-com-bo/aclo-potosi.png"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Aclo Tarija 101.5 FM",
+                    url = "https://cloudstream2030.conectarhosting.com/8234/stream",
+                    genre = "Crossover / Noticias",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Bolivia",
+                    region = "Tarija",
+                    province = "Tarija",
+                    district = "Tarija",
+                    faviconUrl = "https://cdn.bolivia.com/canales/aclo-3563-v1.jpg"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Acqua 100.1",
+                    url = "https://strcdn.klm99.com:10983/acquapinamar",
+                    genre = "Variada",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Argentina",
+                    region = "Mar del Plata",
+                    province = "Villa Gesell",
+                    district = "Villa Gesell",
+                    faviconUrl = "https://www.acqua.fm/img/Acqua_logo.png"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Radio Actitud 89.7 FM",
+                    url = "https://streaming.servicioswebmx.com/8158/stream",
+                    genre = "Latino / Pop / Salsa / Religión",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "México",
+                    region = "Tamaulipas",
+                    province = "Cd. Victoria",
+                    district = "Cd. Victoria",
+                    faviconUrl = "https://static2.mytuner.mobi/media/tvos_radios/347/radio-actitud-897-fm.b7186c38.jpg"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Actitud 100.9 FM",
+                    url = "https://ss.redradios.net:8002/stream",
+                    genre = "Religiosa",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Guatemala",
+                    region = "Guatemala",
+                    province = "Guatemala",
+                    district = "Guatemala",
+                    faviconUrl = "https://cdn.instant.audio/images/logos/emisoras-com-gt/actitud-100-9.png"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Acseri 107.7 FM",
+                    url = "https://stream-178.zeno.fm/rmnr2cphyxhvv",
+                    genre = "Baladas / Pop / Latino",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Costa Rica",
+                    region = "San José",
+                    province = "Aserrí",
+                    district = "Aserrí",
+                    faviconUrl = "https://cdn.radoxo.com/images/costa-rica/radio-acseri.webp?v=1791194402"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "COPE Emisión Nacional",
+                    url = "https://flucast33-h-cloud.flumotion.com/cope/net1.mp3?referrer_url=https%3A%2F%2Fwww.cope.es%2F&player_type=mobile&domain=www.cope.es",
+                    genre = "Noticias",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "España",
+                    region = "Madrid",
+                    province = "Madrid",
+                    district = "Madrid",
+                    faviconUrl = "https://www.cope.es/favicon/cope/track-default-cope.png"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Estéreo Abejorral 107.4 FM",
+                    url = "https://icecasthd.net/proxy/abejorral/live",
+                    genre = "Variada",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Colombia",
+                    region = "Antioquia",
+                    province = "Antioquia",
+                    district = "Antioquia",
+                    faviconUrl = "https://cdn.instant.audio/images/logos/radios-com-co/abejorral-estereo.png"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "La Mega",
+                    url = "https://acp4.lorini.net:2050/stream",
+                    genre = "Pop / Rock / Latino",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Venezuela",
+                    region = "Caracas",
+                    province = "Caracas",
+                    district = "Caracas",
+                    faviconUrl = "https://cdn.instant.audio/images/logos/radio-co-ve/mega-caracas.png"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "RFI Internacional",
+                    url = "https://rfienespagnol64k.ice.infomaniak.ch/rfienespagnol-64.mp3",
+                    genre = "Noticias / Entrevistas",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Francia",
+                    region = "París",
+                    province = "París",
+                    district = "París",
+                    faviconUrl = "https://s.rfi.fr/media/display/20f7c302-b9e2-11ed-86cc-005056a90321/w:246/p:1x1/carre-1200-DIRECT-Monde%20%281%29.webp"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "RNE Radio Nacional",
+                    url = "https://dispatcher.rndfnk.com/crtve/rne5/main/mp3/high?aggregator=tunein",
+                    genre = "Noticias",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "España",
+                    region = "Madrid",
+                    province = "Madrid",
+                    district = "Madrid",
+                    faviconUrl = "https://img2.rtve.es/p/1750/imgbackground/?h=320"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Radio AFRONTAR",
+                    url = "https://vigo-copesedes-rrcast.flumotion.com/copesedes/vigo-low.mp3",
+                    genre = "Noticias",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "España",
+                    region = "Galicia",
+                    province = "Vigo",
+                    district = "Vigo",
+                    faviconUrl = ""
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Acceso Total",
+                    url = "https://us10a.serverse.com/proxy/acce8712?mp=/",
+                    genre = "Pop / Reggaetón",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "México",
+                    region = "México",
+                    province = "México",
+                    district = "México",
+                    faviconUrl = "https://static2.mytuner.mobi/media/tvos_radios/113/acceso-total-web-radio.9d209f7f.jpg"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "EsRadio 99.1 FM",
+                    url = "https://libertaddigital-radio-live1.flumotion.com/libertaddigital/ld-live1-low.mp3",
+                    genre = "Deportes / Noticias",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "España",
+                    region = "Madrid",
+                    province = "Madrid",
+                    district = "Madrid",
+                    faviconUrl = "https://static.mytuner.mobi/media/radios-150px/592/esradio.fab2c4b6.jpg"
+                ),
+                RadioStation(
+                    id = 0,
+                    name = "Viva Voz",
+                    url = "https://rr5100.globalhost1.com/8006/stream",
+                    genre = "Salsa",
+                    isFavorite = false,
+                    isCustom = false,
+                    country = "Nicaragua",
+                    region = "Managua",
+                    province = "Managua",
+                    district = "Managua",
+                    faviconUrl = "https://static2.mytuner.mobi/media/tvos_radios/561/vivavoz-radio.e6d93172.png"
+                )
             )
         }
     }

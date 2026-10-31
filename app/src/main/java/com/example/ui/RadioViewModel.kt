@@ -838,10 +838,9 @@ class RadioViewModel(
                             } else base
                         }
                         "Curadas" -> {
-                            val cajamarcaCurated = RadioRepository.getDefaultStations()
-                                .filter { it.region.equals("Cajamarca", ignoreCase = true) }
+                            val defaultCurated = RadioRepository.getDefaultStations()
                                 .mapIndexed { idx, s -> s.copy(id = 9500 + idx) }
-                            val curated = cajamarcaCurated + MultiSourceRadioClients.fallbackGitHubCuratedList + MultiSourceRadioClients.fallbackFmStreamList
+                            val curated = defaultCurated + MultiSourceRadioClients.fallbackGitHubCuratedList + MultiSourceRadioClients.fallbackFmStreamList
                             if (query.isNotBlank()) {
                                 curated.filter {
                                     it.name.contains(query, ignoreCase = true) ||
