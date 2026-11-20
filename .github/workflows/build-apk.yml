@@ -2,7 +2,7 @@ name: Android CI and signed releases
 
 on:
   push:
-    branches: [main, 'release/v1.0.0']
+    branches: [main, 'release/v*.*.*']
     tags:
       - 'v*.*.*'
   pull_request:
@@ -45,7 +45,7 @@ jobs:
 
   release:
     name: Sign and publish production APK
-    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/release/v1.0.0')
+    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/heads/release/v'))
     needs: test
     runs-on: ubuntu-latest
     permissions:
@@ -82,6 +82,18 @@ jobs:
             echo "::error::Missing matching Fastlane changelog for versionCode=$version_code"
             exit 1
           fi
+          for locale in en-US es-ES; do
+            test -s "fastlane/metadata/android/$locale/images/icon.png" || {
+              echo "::error::Missing store icon for $locale"
+              exit 1
+            }
+          done
+          for i in 1 2 3 4 5; do
+            test -s "fastlane/metadata/android/es-ES/images/phoneScreenshots/$i.jpg" || {
+              echo "::error::Missing screenshot $i.jpg"
+              exit 1
+            }
+          done
       - name: Restore permanent production signing key
         shell: bash
         env:

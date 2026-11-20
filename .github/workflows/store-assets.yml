@@ -1,0 +1,49 @@
+name: Generate store icon and normalize Fastlane screenshots
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/store-assets.yml'
+      - 'scripts/prepare_store_assets.py'
+      - 'app/src/main/res/mipmap/ic_launcher.xml'
+      - 'fastlane/metadata/android/es-ES/images/phoneScreenshots/*.jpg'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: store-assets-main
+  cancel-in-progress: false
+
+jobs:
+  assets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install image tools
+        run: python -m pip install --disable-pip-version-check Pillow==11.3.0 CairoSVG==2.8.2
+      - name: Generate icon and normalize screenshots
+        run: python scripts/prepare_store_assets.py
+      - name: Commit generated Fastlane assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add             fastlane/metadata/android/en-US/images/icon.png             fastlane/metadata/android/es-ES/images/icon.png             fastlane/metadata/android/es-ES/images/phoneScreenshots/1.jpg             fastlane/metadata/android/es-ES/images/phoneScreenshots/2.jpg             fastlane/metadata/android/es-ES/images/phoneScreenshots/3.jpg             fastlane/metadata/android/es-ES/images/phoneScreenshots/4.jpg             fastlane/metadata/android/es-ES/images/phoneScreenshots/5.jpg
+          if git diff --cached --quiet; then
+            echo "Store assets already current."
+            exit 0
+          fi
+          git commit -m "build(store): render official icon and normalize screenshots"
+          git push origin HEAD:main
