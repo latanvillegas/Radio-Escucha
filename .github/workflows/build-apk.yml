@@ -32,6 +32,8 @@ jobs:
         run: gradle :app:testDebugUnitTest --no-daemon
       - name: Build debug APK for CI only
         run: gradle :app:assembleDebug --no-daemon
+      - name: Validate minified release build without publishing
+        run: gradle :app:assembleRelease --no-daemon
       - name: Upload debug CI artifact
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
