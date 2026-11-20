@@ -1,0 +1,13 @@
+Listen to live Internet radio with OpenRadio, a native Android radio player.
+
+Features:
+- Search radio stations by name, country, and genre.
+- Play live audio streams and manage favorite stations.
+- Add custom stations by URL.
+- Continue listening in the background with Media3 and media notifications.
+- Use a sleep timer and audio equalizer controls.
+- Customize the interface with themes and display settings.
+
+Station availability and stream conditions depend on external providers. An Internet connection is needed to play live radio. Some stations use HTTP connections.
+
+Source code: https://github.com/latanvillegas/Radio-Escucha

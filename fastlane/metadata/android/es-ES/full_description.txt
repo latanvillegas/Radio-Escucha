@@ -1,0 +1,13 @@
+Escucha emisoras de radio por Internet con OpenRadio, un reproductor nativo para Android.
+
+Funciones:
+- Busca emisoras por nombre, país y género.
+- Escucha transmisiones de audio en directo y administra tus favoritos.
+- Agrega emisoras personalizadas mediante URL.
+- Reproduce audio en segundo plano mediante Media3, con controles de notificación.
+- Utiliza temporizador de apagado y opciones de ecualización.
+- Personaliza la interfaz con temas y ajustes de visualización.
+
+La disponibilidad de estaciones y las condiciones de transmisión dependen de proveedores externos. Se requiere conexión a Internet para escuchar radio en vivo. Algunas estaciones utilizan conexiones HTTP.
+
+Código fuente: https://github.com/latanvillegas/Radio-Escucha

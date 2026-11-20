@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Radios en Vivo"
+rootProject.name = "OpenRadio"
 include(":app")

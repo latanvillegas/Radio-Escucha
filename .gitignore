@@ -16,3 +16,9 @@
 local.properties
 .env
 debug.keystore
+
+# Production signing credentials
+*.jks
+*.keystore
+*.p12
+*.pfx
