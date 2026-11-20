@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Dynamic third-party HTTP radio streams are needed for compatibility.
+         First-party API endpoints and image fallbacks remain TLS-only. -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors><certificates src="system" /></trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain>ipapi.co</domain>
+        <domain>ipwho.is</domain>
+        <domain>api.iheart.com</domain>
+        <domain>raw.githubusercontent.com</domain>
+        <domain>api.somafm.com</domain>
+        <domain>itunes.apple.com</domain>
+        <domain>fmstream.org</domain>
+        <domain>de1.api.radio-browser.info</domain>
+        <domain>fi1.api.radio-browser.info</domain>
+        <domain>at1.api.radio-browser.info</domain>
+        <domain>www.google.com</domain>
+        <domain>wsrv.nl</domain>
+    </domain-config>
+</network-security-config>

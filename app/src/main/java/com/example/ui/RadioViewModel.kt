@@ -191,13 +191,18 @@ class RadioViewModel(
     private val _radioBrowserSearchQuery = MutableStateFlow("")
     val radioBrowserSearchQuery: StateFlow<String> = _radioBrowserSearchQuery.asStateFlow()
 
-    private val _userLocationCity = MutableStateFlow("Madrid")
+    // Country is derived locally; network geolocation requires an explicit request.
+    private val deviceCountryCode = java.util.Locale.getDefault().country.ifBlank { "ES" }
+    private val deviceCountryName = java.util.Locale("", deviceCountryCode)
+        .getDisplayCountry(java.util.Locale.forLanguageTag("es")).ifBlank { "España" }
+
+    private val _userLocationCity = MutableStateFlow("")
     val userLocationCity: StateFlow<String> = _userLocationCity.asStateFlow()
 
-    private val _userLocationCountry = MutableStateFlow("España")
+    private val _userLocationCountry = MutableStateFlow(deviceCountryName)
     val userLocationCountry: StateFlow<String> = _userLocationCountry.asStateFlow()
 
-    private val _userLocationCountryCode = MutableStateFlow("ES")
+    private val _userLocationCountryCode = MutableStateFlow(deviceCountryCode)
     val userLocationCountryCode: StateFlow<String> = _userLocationCountryCode.asStateFlow()
 
     private val _isManualLocation = MutableStateFlow(false)
@@ -240,7 +245,6 @@ class RadioViewModel(
         }
         initPlayer(application)
         loadRadioBrowserTopVoted()
-        detectAutoIpLocation(triggerFetch = false)
     }
 
     private fun initPlayer(application: Application) {
@@ -1033,11 +1037,15 @@ class RadioViewModel(
     private fun detectAutoIpLocation(triggerFetch: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val geo = try {
+                val primary = try {
                     MultiSourceRadioClients.ipApiCoService.getGeoLocation()
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
                 } catch (_: Exception) {
-                    MultiSourceRadioClients.ipGeoService.getGeoLocation()
+                    null
                 }
+                val geo = primary?.takeIf { it.resolvedCountry().isNotBlank() }
+                    ?: MultiSourceRadioClients.ipWhoIsService.getGeoLocation()
                 val country = geo.resolvedCountry()
                 val code = geo.resolvedCountryCode()
                 val city = geo.resolvedCity()
@@ -1050,8 +1058,10 @@ class RadioViewModel(
                     }
                     return@launch
                 }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
             } catch (_: Exception) {
-                // Fallback if offline or blocked
+                // Offline or provider unavailable: keep locale or manual country.
             }
             if (triggerFetch) {
                 fetchRadioBrowserByCountry(_userLocationCountry.value)
