@@ -102,7 +102,6 @@ dependencies {
     implementation(libs.coil.gif)
     implementation(libs.retrofit)
     implementation(libs.converter.moshi)
-    implementation(libs.logging.interceptor)
     implementation(libs.okhttp)
     implementation(libs.moshi.kotlin)
     implementation(libs.androidx.datastore.preferences)

@@ -228,8 +228,8 @@ data class IpGeoLocationResponse(
     fun resolvedLon(): Double? = lon ?: longitude
 }
 
-interface IpGeoApiService {
-    @GET("json")
+interface IpWhoIsService {
+    @GET("/")
     suspend fun getGeoLocation(): IpGeoLocationResponse
 }
 
@@ -252,6 +252,7 @@ object MultiSourceRadioClients {
         }
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
+        .followSslRedirects(false)
         .build()
 
     val iHeartService: IHeartApiService by lazy {
@@ -311,13 +312,14 @@ object MultiSourceRadioClients {
             .create(FmStreamApiService::class.java)
     }
 
-    val ipGeoService: IpGeoApiService by lazy {
+    // Secondary HTTPS geolocation provider, used only after explicit user action.
+    val ipWhoIsService: IpWhoIsService by lazy {
         Retrofit.Builder()
-            .baseUrl("http://ip-api.com/")
+            .baseUrl("https://ipwho.is/")
             .client(okHttpClient)
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
-            .create(IpGeoApiService::class.java)
+            .create(IpWhoIsService::class.java)
     }
 
     val ipApiCoService: IpApiCoService by lazy {

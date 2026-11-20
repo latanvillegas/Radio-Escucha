@@ -28,6 +28,20 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Audit release dependencies and network policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+          gradle :app:dependencies --configuration releaseRuntimeClasspath --no-daemon > release-runtime-dependencies.txt
+          python3 scripts/audit_distribution.py --dependencies release-runtime-dependencies.txt
+      - name: Upload dependency audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: openradio-runtime-dependencies
+          path: release-runtime-dependencies.txt
+          if-no-files-found: error
+          retention-days: 30
       - name: Run unit tests
         run: gradle :app:testDebugUnitTest --no-daemon
       - name: Build debug APK for CI only

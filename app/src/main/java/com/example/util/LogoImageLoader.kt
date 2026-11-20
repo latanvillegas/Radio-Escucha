@@ -96,7 +96,7 @@ object LogoImageLoader {
             .connectTimeout(8, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
             .followRedirects(true)
-            .followSslRedirects(true)
+            .followSslRedirects(false) // Never downgrade image requests to HTTP.
             .addInterceptor(headerInterceptor)
             .build()
     }
@@ -172,6 +172,11 @@ object LogoImageLoader {
             !cleaned.startsWith("https://", ignoreCase = true)
         ) {
             cleaned = "https://$cleaned"
+        }
+
+        // Radio logos are UI assets, not streams: never fetch over cleartext HTTP.
+        if (cleaned.startsWith("http://", ignoreCase = true)) {
+            cleaned = "https://" + cleaned.substring(7)
         }
 
         // Encode unescaped spaces in path
@@ -261,17 +266,8 @@ object LogoImageLoader {
             }
         }
 
-        // 3. If HTTP/HTTPS scheme mismatch might occur on legacy radio servers
-        if (sanitized.startsWith("https://", ignoreCase = true) &&
-            host.isNotEmpty() &&
-            host !in GENERIC_CDN_HOSTS
-        ) {
-            candidates.add("http://" + sanitized.removePrefix("https://").removePrefix("HTTPS://"))
-        } else if (sanitized.startsWith("http://", ignoreCase = true)) {
-            candidates.add("https://" + sanitized.removePrefix("http://").removePrefix("HTTP://"))
-        }
-
-        // 4. Domain favicon fallback if the logo URL was hosted on the radio's own website
+        // 3. Do not downgrade logos to HTTP after an HTTPS failure.
+        // 4. Domain favicon fallback if hosted on the broadcaster's site
         if (host.isNotEmpty() && host !in GENERIC_CDN_HOSTS) {
             candidates.add("https://www.google.com/s2/favicons?domain=$host&sz=256")
         }

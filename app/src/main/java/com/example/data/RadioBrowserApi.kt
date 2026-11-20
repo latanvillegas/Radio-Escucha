@@ -118,6 +118,7 @@ object RadioBrowserApiClient {
         }
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
+        .followSslRedirects(false)
         .build()
 
     val service: RadioBrowserApiService by lazy {
