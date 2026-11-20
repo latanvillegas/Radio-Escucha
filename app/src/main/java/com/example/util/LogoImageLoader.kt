@@ -96,7 +96,7 @@ object LogoImageLoader {
             .connectTimeout(8, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
             .followRedirects(true)
-            .followSslRedirects(true)
+            .followSslRedirects(false) // Never downgrade image requests to HTTP.
             .addInterceptor(headerInterceptor)
             .build()
     }

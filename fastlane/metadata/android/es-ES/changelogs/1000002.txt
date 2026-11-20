@@ -1,0 +1,1 @@
+Privacidad: ubicación inicial sin consulta IP, APIs y logotipos con HTTPS y auditoría de dependencias.

@@ -176,3 +176,7 @@ OpenRadio se publica mediante versiones firmadas (`vX.Y.Z`) y metadatos Fastlane
 Consulta [la guía completa de distribución](docs/DISTRIBUTION.md) para preparar la clave, las etiquetas y las solicitudes de inclusión en Orion Store, IzzyOnDroid y F-Droid.
 
 **Licencia:** [MIT](LICENSE) para el código original; las emisoras, logotipos y material externo pertenecen a sus titulares.
+
+## Privacidad y distribución libre
+
+Consulta [la política de red y privacidad](docs/PRIVACY.md) y [la auditoría de seguridad y dependencias](docs/SECURITY_PRIVACY_AUDIT.md). Las emisoras HTTP siguen siendo compatibles, pero las APIs de la aplicación utilizan HTTPS. La incorporación a IzzyOnDroid y F-Droid depende de una revisión externa de licencias, dependencias y procedencia del código.

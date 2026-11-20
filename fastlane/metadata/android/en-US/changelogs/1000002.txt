@@ -1,0 +1,1 @@
+Privacy: no automatic IP lookup on startup; HTTPS-only directory and logo requests; release dependency audit.
