@@ -127,7 +127,7 @@ app/src/main/java/com/example/
 ### Pasos de Instalación
 1. Clona este repositorio:
    ```bash
-   git clone https://github.com/tu-usuario/openradio-android.git
+   git clone https://github.com/latanvillegas/Radio-Escucha.git
    ```
 2. Abre el proyecto en Android Studio.
 3. Sincroniza los archivos de Gradle (`Sync Project with Gradle Files`).
@@ -159,10 +159,20 @@ gradle :app:recordRoborazziDebug
 - `INTERNET`: Requerido para la transmisión de streams de audio HTTP/HTTPS.
 - `FOREGROUND_SERVICE` & `FOREGROUND_SERVICE_MEDIA_PLAYBACK`: Mantiene la reproducción activa cuando la pantalla está apagada o la app está en segundo plano.
 - `POST_NOTIFICATIONS`: Permite mostrar los controles multimedia interactivos en la barra de estado de Android 13+.
-- `RECORD_AUDIO` / `POST_NOTIFICATIONS`: Para la función opcional de grabación en vivo.
+- Nota: la grabación de flujos de radio no requiere permiso de micrófono.
 
 ---
 
 <p align="center">
   <b>OpenRadio</b> • Desarrollado con prácticas Staff Engineer de alto rendimiento en Android.
 </p>
+
+---
+
+## Distribución en tiendas
+
+OpenRadio se publica mediante versiones firmadas (`vX.Y.Z`) y metadatos Fastlane bilingües. Los APK `app-debug.apk` anteriores son versiones de prueba, no paquetes de producción. **Antes de lanzar la primera versión, configura los secretos de firma y captura imágenes reales de la aplicación.**
+
+Consulta [la guía completa de distribución](docs/DISTRIBUTION.md) para preparar la clave, las etiquetas y las solicitudes de inclusión en Orion Store, IzzyOnDroid y F-Droid.
+
+**Licencia:** [MIT](LICENSE) para el código original; las emisoras, logotipos y material externo pertenecen a sus titulares.
