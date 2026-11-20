@@ -65,7 +65,10 @@ def check_project(root: Path) -> list[str]:
     protected = set()
     for domain_config in config.findall("domain-config"):
         if domain_config.attrib.get("cleartextTrafficPermitted") == "false":
-            protected.update((domain.text or "").strip() for domain in domain_config.findall("domain"))
+            for domain in domain_config.findall("domain"):
+                if domain.attrib.get("includeSubdomains") not in ("true", "false"):
+                    errors.append("Missing includeSubdomains attribute on " + (domain.text or ""))
+                protected.add((domain.text or "").strip())
     missing = sorted(REQUIRED_HTTPS_DOMAINS - protected)
     if missing:
         errors.append("Missing TLS-only API hosts: " + ", ".join(missing))

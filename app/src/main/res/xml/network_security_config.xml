@@ -6,17 +6,17 @@
         <trust-anchors><certificates src="system" /></trust-anchors>
     </base-config>
     <domain-config cleartextTrafficPermitted="false">
-        <domain>ipapi.co</domain>
-        <domain>ipwho.is</domain>
-        <domain>api.iheart.com</domain>
-        <domain>raw.githubusercontent.com</domain>
-        <domain>api.somafm.com</domain>
-        <domain>itunes.apple.com</domain>
-        <domain>fmstream.org</domain>
-        <domain>de1.api.radio-browser.info</domain>
-        <domain>fi1.api.radio-browser.info</domain>
-        <domain>at1.api.radio-browser.info</domain>
-        <domain>www.google.com</domain>
-        <domain>wsrv.nl</domain>
+        <domain includeSubdomains="false">ipapi.co</domain>
+        <domain includeSubdomains="false">ipwho.is</domain>
+        <domain includeSubdomains="false">api.iheart.com</domain>
+        <domain includeSubdomains="false">raw.githubusercontent.com</domain>
+        <domain includeSubdomains="false">api.somafm.com</domain>
+        <domain includeSubdomains="false">itunes.apple.com</domain>
+        <domain includeSubdomains="false">fmstream.org</domain>
+        <domain includeSubdomains="false">de1.api.radio-browser.info</domain>
+        <domain includeSubdomains="false">fi1.api.radio-browser.info</domain>
+        <domain includeSubdomains="false">at1.api.radio-browser.info</domain>
+        <domain includeSubdomains="false">www.google.com</domain>
+        <domain includeSubdomains="false">wsrv.nl</domain>
     </domain-config>
 </network-security-config>
