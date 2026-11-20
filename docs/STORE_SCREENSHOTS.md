@@ -12,7 +12,7 @@ Las capturas de pantalla reales proporcionadas por el desarrollador se publican 
 | `4.jpg` | Biblioteca | `1000102178.jpg` |
 | `5.jpg` | Ajustes | `1000102176.jpg` |
 
-Cada JPG original mide **691 × 1536 píxeles**. Los archivos deben colocarse en:
+Las capturas originales del desarrollador miden **691 × 1536 píxeles**. El pipeline prepara copias finales **768 × 1536** añadiendo márgenes laterales, sin recortar contenido, para cumplir la relación máxima de 2:1 recomendada por IzzyOnDroid. Los archivos de publicación se almacenan en:
 
 ```
 fastlane/metadata/android/es-ES/images/phoneScreenshots/1.jpg
@@ -26,9 +26,9 @@ fastlane/metadata/android/es-ES/images/phoneScreenshots/5.jpg
 
 1. Descomprimir el paquete `OpenRadio-Fastlane-5-capturas.zip` con las cinco fotografías originales, sus sumas SHA-256 y el manifiesto.
 2. Abrir [la carpeta de capturas de Fastlane](https://github.com/latanvillegas/Radio-Escucha/tree/main/fastlane/metadata/android/es-ES/images/phoneScreenshots) en GitHub.
-3. Pulsar **Add file → Upload files**, seleccionar los cinco JPG (no el ZIP) y confirmar **Commit changes** en `main`. Los archivos numéricos deben permanecer idénticos al paquete.
+3. Pulsar **Add file → Upload files**, seleccionar los cinco JPG (no el ZIP) y confirmar **Commit changes** en `main`. Los originales deben conservarse en el historial; las versiones procesadas pueden tener hashes diferentes debido al relleno y a la recompresión.
 4. Verificar que los cinco JPG son navegables en GitHub. No eliminar la carpeta al subir el contenido.
-5. Publicar una actualización posterior (**v1.0.1**) con el changelog `1000001.txt` para que las tiendas que leen el árbol asociado a una versión puedan recoger estas imágenes. **No modificar el tag `v1.0.0` ya publicado**.
+5. Confirmar que el workflow de preparación de imágenes ha generado el icono y normalizado las cinco imágenes antes de publicar la versión **v1.0.1**. **No modificar el tag `v1.0.0` ya publicado**.
 
 Las capturas en español deben permanecer en `es-ES`. Para el directorio `en-US`, tomar capturas con la interfaz traducida al inglés, si existe. No duplicar capturas en español simulando localización.
 
@@ -39,3 +39,5 @@ Las capturas en español deben permanecer en `es-ES`. Para el directorio `en-US`
 - Las capturas proporcionadas representan el comportamiento real de la aplicación, no una maqueta.
 
 La carpeta se crea inicialmente con `.gitkeep` solo para habilitar la carga web. Esta documentación no significa que los archivos JPG ya estén subidos.
+
+La preparación automática está documentada en [STORE_ASSETS_AND_RELEASE.md](STORE_ASSETS_AND_RELEASE.md). La carpeta existe y contiene las capturas, pero se requiere la finalización del workflow para que los PNG y JPG procesados aparezcan en el mismo commit de publicación.
