@@ -2,7 +2,7 @@ name: Android CI and signed releases
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'release/v1.0.0']
     tags:
       - 'v*.*.*'
   pull_request:
@@ -45,7 +45,7 @@ jobs:
 
   release:
     name: Sign and publish production APK
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/release/v1.0.0')
     needs: test
     runs-on: ubuntu-latest
     permissions:
@@ -66,7 +66,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ ! "$GITHUB_REF_NAME" =~ ^v([1-9][0-9]{0,2})\.([0-9]|[1-9][0-9]{0,2})\.([0-9]|[1-9][0-9]{0,2})$ ]]; then
+          RELEASE_TAG="${GITHUB_REF_NAME##*/}"
+          if [[ ! "$RELEASE_TAG" =~ ^v([1-9][0-9]{0,2})\.([0-9]|[1-9][0-9]{0,2})\.([0-9]|[1-9][0-9]{0,2})$ ]]; then
             echo "::error::Release tags must match vMAJOR.MINOR.PATCH (each component 0..999, MAJOR > 0)"
             exit 1
           fi
@@ -74,7 +75,8 @@ jobs:
           minor=$((10#${BASH_REMATCH[2]}))
           patch=$((10#${BASH_REMATCH[3]}))
           version_code=$((major * 1000000 + minor * 1000 + patch))
-          echo "APP_VERSION_NAME=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+          echo "APP_VERSION_NAME=${RELEASE_TAG#v}" >> "$GITHUB_ENV"
           echo "APP_VERSION_CODE=$version_code" >> "$GITHUB_ENV"
           if [[ ! -f "fastlane/metadata/android/en-US/changelogs/$version_code.txt" ]]; then
             echo "::error::Missing matching Fastlane changelog for versionCode=$version_code"
@@ -119,11 +121,13 @@ jobs:
           test -n "$signer"
           "$signer" verify --verbose --print-certs "$apk"
           mkdir -p dist
-          cp "$apk" "dist/OpenRadio-$GITHUB_REF_NAME.apk"
-          (cd dist && sha256sum "OpenRadio-$GITHUB_REF_NAME.apk" > "OpenRadio-$GITHUB_REF_NAME.apk.sha256")
+          cp "$apk" "dist/OpenRadio-$RELEASE_TAG.apk"
+          (cd dist && sha256sum "OpenRadio-$RELEASE_TAG.apk" > "OpenRadio-$RELEASE_TAG.apk.sha256")
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
           files: |
             dist/OpenRadio-*.apk
             dist/OpenRadio-*.sha256
