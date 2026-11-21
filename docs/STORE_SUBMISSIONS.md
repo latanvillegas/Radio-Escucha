@@ -1,5 +1,9 @@
 # Store submission package — OpenRadio v1.0.1
 
+> **Archivo histórico:** este documento conserva el paquete inicial v1.0.1 para trazabilidad; el último Release firmado está en https://github.com/latanvillegas/Radio-Escucha/releases/latest. La incidencia vigente de Orion Store se generó con el cliente oficial y es https://github.com/RookieEnough/Orion-Data/issues/3187. No vuelvas a enviar manualmente el JSON de esta página: la antigua incidencia #3159 tenía un formato no aceptado. IzzyOnDroid sigue el proceso en https://codeberg.org/IzzyOnDroid/repodata/issues/930.
+
+
+
 The source code, real screenshots, store icon and signed APK have been published and verified against the same immutable GitHub tag.
 
 ## Official release
