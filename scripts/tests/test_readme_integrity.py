@@ -20,6 +20,7 @@ class ReadmeIntegrityTest(unittest.TestCase):
                 self.assertTrue((ROOT / file).is_file(), file)
         prop = (ROOT / "gradle/wrapper/gradle-wrapper.properties").read_text(encoding="utf-8")
         self.assertIn("gradle-8.9-bin.zip", prop)
+        self.assertIn("distributionSha256Sum=d725d707bfabd4dfdc958c624003b3c80accc03f7037b5122c4b1d0ef15cecab", prop)
 
     def test_readme_reports_actual_stack_versions(self):
         catalog = CATALOG.read_text(encoding="utf-8")
