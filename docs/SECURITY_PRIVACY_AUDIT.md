@@ -18,7 +18,7 @@
 4. **Software licences:** Static package group checks do not establish FOSS status for every transitively bundled dependency. Review resolved artifacts and individual SPDX licences before F-Droid submission. MIT only covers original project code; broadcaster names, imagery and streams have separate rights.
 5. **Android Auto:** The AndroidManifest metadata named com.google.android.gms.car.application is not itself a Play Services runtime dependency; verify the resolved release graph rather than assuming it is.
 6. **Human review and AI policy:** IzzyOnDroid currently restricts LLM-produced application code. This project must be reviewed and declared transparently by its maintainers; CI cannot certify code provenance or guarantee inclusion.
-7. **Reproducible builds:** Gradle 8.9 is set in GitHub Actions but the source repository lacks a Gradle Wrapper and a complete F-Droid build recipe. Add these, validate from a clean checkout, and verify deterministic APK builds before requesting official F-Droid inclusion.
+7. **Reproducible builds:** Gradle 8.9 is pinned in the official Gradle Wrapper committed to the source repository. A complete F-Droid build recipe is still missing, and source builds have not been shown to be deterministically reproducible. Perform independent clean-build and APK reproducibility checks before requesting official F-Droid inclusion.
 8. **Device testing:** Validate Android 7–15+, HTTP-only stations, HTTPS/HLS streams with redirected segment requests, logo fallbacks, local country selection, explicit IP refresh, manual country override, and Android Auto on real devices.
 
 ## Manual CI-equivalent audit
@@ -26,14 +26,14 @@
 From the repository root:
 
     python3 -m unittest discover -s scripts/tests -p 'test_*.py'
-    gradle :app:dependencies --configuration releaseRuntimeClasspath --no-daemon > release-runtime-dependencies.txt
+    ./gradlew :app:dependencies --configuration releaseRuntimeClasspath --no-daemon > release-runtime-dependencies.txt
     python3 scripts/audit_distribution.py --dependencies release-runtime-dependencies.txt
-    gradle :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease --no-daemon
+    ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease --no-daemon
 
 ## Submission tracking
 
 - IzzyOnDroid inclusion: https://codeberg.org/IzzyOnDroid/repodata/issues/930
-- Orion Store inclusion: https://github.com/RookieEnough/Orion-Data/issues/3159
+- Orion Store inclusion: https://github.com/RookieEnough/Orion-Data/issues/3187
 - IzzyOnDroid policy: https://izzyondroid.org/docs/general/AppInclusionPolicy/
 - F-Droid inclusion policy: https://f-droid.org/docs/Inclusion_Policy/
 

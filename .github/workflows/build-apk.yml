@@ -28,12 +28,14 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Verify repository Gradle Wrapper
+        run: ./gradlew --version --no-daemon
       - name: Audit release dependencies and network policy
         shell: bash
         run: |
           set -euo pipefail
           python3 -m unittest discover -s scripts/tests -p 'test_*.py'
-          gradle :app:dependencies --configuration releaseRuntimeClasspath --no-daemon > release-runtime-dependencies.txt
+          ./gradlew :app:dependencies --configuration releaseRuntimeClasspath --no-daemon > release-runtime-dependencies.txt
           python3 scripts/audit_distribution.py --dependencies release-runtime-dependencies.txt
       - name: Upload dependency audit
         uses: actions/upload-artifact@v4
@@ -43,11 +45,11 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Run unit tests
-        run: gradle :app:testDebugUnitTest --no-daemon
+        run: ./gradlew :app:testDebugUnitTest --no-daemon
       - name: Build debug APK for CI only
-        run: gradle :app:assembleDebug --no-daemon
+        run: ./gradlew :app:assembleDebug --no-daemon
       - name: Validate minified release build without publishing
-        run: gradle :app:assembleRelease --no-daemon
+        run: ./gradlew :app:assembleRelease --no-daemon
       - name: Upload debug CI artifact
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
@@ -134,7 +136,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          gradle :app:assembleRelease \
+          ./gradlew :app:assembleRelease \
             -PAPP_VERSION_NAME="$APP_VERSION_NAME" \
             -PAPP_VERSION_CODE="$APP_VERSION_CODE" --no-daemon
       - name: Verify signature and prepare published assets

@@ -1,182 +1,159 @@
-# 📻 OpenRadio - Plataforma de Radio en Vivo & Streaming Multimedia
+<div align="center">
 
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-purple.svg)](https://kotlinlang.org/)
-[![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-green.svg)](https://developer.android.com/jetpack/compose)
-[![Media3 ExoPlayer](https://img.shields.io/badge/Audio-Jetpack%20Media3%201.5.1-blue.svg)](https://developer.android.com/media/media3)
-[![Room DB](https://img.shields.io/badge/Storage-Room%202.6.1-orange.svg)](https://developer.android.com/training/data-storage/room)
-[![Architecture](https://img.shields.io/badge/Architecture-MVVM%20%2B%20Clean-brightgreen.svg)](https://developer.android.com/topic/architecture)
+<img src="fastlane/metadata/android/es-ES/images/icon.png" alt="Icono de OpenRadio" width="112" height="112">
 
-**OpenRadio** es una aplicación nativa de Android de alto rendimiento diseñada para la reproducción de estaciones de radio FM/AM y digitales en vivo de Perú, Latinoamérica y el mundo. La aplicación combina una arquitectura **Offline-First**, integración con **Jetpack Media3 (ExoPlayer)**, motor de grabación en vivo, soporte para **Android Auto** y una interfaz inmersiva **Edge-to-Edge** en **Jetpack Compose (Material Design 3)**.
+# OpenRadio
 
----
+**Radio por Internet para Android · Kotlin · Jetpack Compose · Media3**
 
-## 🏛️ Arquitectura del Sistema
+[![Android CI](https://github.com/latanvillegas/Radio-Escucha/actions/workflows/build-apk.yml/badge.svg?branch=main)](https://github.com/latanvillegas/Radio-Escucha/actions/workflows/build-apk.yml)
+[![Latest release](https://img.shields.io/github/v/release/latanvillegas/Radio-Escucha?label=Release)](https://github.com/latanvillegas/Radio-Escucha/releases/latest)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Android 7+](https://img.shields.io/badge/Android-7.0%2B-blue.svg)](app/build.gradle.kts)
 
-La aplicación sigue los principios de **Clean Architecture** y el patrón **MVVM (Model-View-ViewModel)** recomendado por Google, garantizando reactividad unidireccional (UDF), testabilidad y mantenibilidad.
+[**Descargar APK firmado**](https://github.com/latanvillegas/Radio-Escucha/releases/latest) · [**Ver código**](app/src/main/java/com/example/) · [**Reportar un problema**](https://github.com/latanvillegas/Radio-Escucha/issues)
 
-```
-┌────────────────────────────────────────────────────────┐
-│               UI Layer (Jetpack Compose M3)            │
-│  - Navigation Compose & Type-Safe Screens              │
-│  - Full-Screen Immersive Player (Edge-to-Edge)         │
-│  - Custom Theme System (AMOLED, Cósmico, Ámbar)        │
-└───────────────────────────┬────────────────────────────┘
-                            │ Collects StateFlows
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│             ViewModel Layer (RadioViewModel)           │
-│  - StateFlow & SharedFlow (UDF)                        │
-│  - Search, Filter, Geo-location Logic & Audio Controls │
-└───────────────────────────┬────────────────────────────┘
-                            │ Requests Data / Commands
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│            Data Layer (Repository Pattern)             │
-│  ┌──────────────────────────┬────────────────────────┐ │
-│  │     Local Data Source    │   Remote Data Source   │ │
-│  │  - Room Persistence DB   │  - RadioBrowser API    │ │
-│  │  - DataStore Preferences │  - Custom Stream APIs  │ │
-│  │  - Local Stream Recs     │  - IP GeoLocation API  │ │
-│  └──────────────────────────┴────────────────────────┘ │
-└───────────────────────────┬────────────────────────────┘
-                            │ Audio Pipeline
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│      Playback Service Engine (Jetpack Media3)         │
-│  - MediaSession & ExoPlayer Foreground Service         │
-│  - Audio Focus handling, Notification & Android Auto   │
-└────────────────────────────────────────────────────────┘
-```
+</div>
 
----
+OpenRadio permite descubrir y escuchar **emisoras de radio por Internet** de todo el mundo, guardar favoritas, consultar el historial de reproducción y añadir emisoras mediante URL. Incluye reproducción en segundo plano, ecualizador, temporizador de apagado, una interfaz 3D configurable y una sesión multimedia compatible con Android Auto.
 
-## ✨ Características Principales
+> **Conexión necesaria:** el audio se transmite desde servidores de emisoras; OpenRadio **no** sintoniza FM/AM mediante hardware ni ofrece descargas de música sin conexión. La caché local sirve para datos de emisoras y preferencias, no para reproducir emisiones desconectado.
 
-### 🎧 Reproductor Inmersivo Full-Screen
-- **Diseño Edge-to-Edge Total**: Transparencia nativa en la barra de estado y de navegación con soporte para gestos del sistema (`BackHandler`).
-- **Visualizador de Audio Activo**: Animaciones reactivas en tiempo real según el estado de reproducción (`Playing`, `Buffering`, `Paused`).
-- **Extracción de Color Dinámico**: Paleta adaptativa derivada del arte de la emisora.
-- **Detalles del Stream**: Inspección de códec, bitrate y calidad de emisión en tiempo real.
+## Capturas de pantalla
 
-### 🌐 Motor de Agregación & Búsqueda Multi-Fuente
-- **RadioBrowser API Integration**: Acceso a un directorio global de más de 30,000 emisoras con filtros por país, género y bitrate.
-- **Geolocalización Inteligente**: Detección automática por IP/dispositivo con opción de anulación manual a "Ninguno" o país/región específica.
-- **Emisoras Personalizadas**: Permite agregar fuentes de audio directas mediante URLs personalizadas (AAC, MP3, HLS).
-
-### 🎙️ Grabación de Audio en Vivo
-- Permite grabar emisiones en vivo directamente al almacenamiento local con un solo toque y gestionar los archivos grabados desde la biblioteca.
-
-### ⏰ Alarma Despertador & Temporizador de Apagado (Sleep Timer)
-- **Radio Alarma**: Programa despertadores para iniciar el día escuchando tu estación favorita.
-- **Sleep Timer Progresivo**: Temporizador programable con desvanecimiento gradual de volumen para un apagado suave.
-
-### 🚗 Soporte para Android Auto & Reproducción en Segundo Plano
-- Integración nativa con `MediaSessionService` para control multimedia desde dispositivos externos, auriculares, smartwatch y pantallas de vehículos con Android Auto.
-
-### 🎨 Personalización & Accesibilidad
-- **5 Temas de Color**: Cósmico, AMOLED Puro, Medianoche Azul, Ámbar Cálido y Esmeralda.
-- **Tipografía Adaptativa**: Control de escala de fuente e íconos para mejorar la accesibilidad visual.
-
----
-
-## 🛠️ Stack Tecnológico
-
-| Componente | Tecnología / Librería | Versión |
-| :--- | :--- | :--- |
-| **Lenguaje** | Kotlin | `2.0.21` |
-| **UI Framework** | Jetpack Compose / Material 3 | `1.7.5` / `1.3.1` |
-| **Audio Engine** | Jetpack Media3 (ExoPlayer + MediaSession) | `1.5.1` |
-| **Base de Datos** | Room Database | `2.6.1` |
-| **Preprocesado KSP** | Kotlin Symbol Processing (KSP) | `2.0.21-1.0.25` |
-| **Persistencia KV** | Jetpack DataStore Preferences | `1.1.1` |
-| **Red & HTTP** | Retrofit + OkHttp3 + Moshi | `2.11.0` / `4.12.0` |
-| **Imágenes** | Coil Compose | `2.7.0` |
-| **Asincronía** | Kotlin Coroutines & Flow | `1.9.0` |
-| **Pruebas** | Robolectric & Roborazzi Screenshot Testing | `4.14.1` / `1.39.0` |
-
----
-
-## 📂 Estructura del Proyecto
-
-```
-app/src/main/java/com/example/
-├── data/                      # Capa de Datos (Modelos, API, Room DB)
-│   ├── database/              # Room DAOs, Entities y AppDatabase
-│   ├── RadioBrowserApi.kt     # Cliente HTTP para directorio de radios
-│   ├── MultiSourceRadioApi.kt # Agregador de streams y fuentes secundarias
-│   └── DiscoverCacheManager.kt# Manejador de cache offline para explorador
-├── service/                   # Servicios en Segundo Plano
-│   └── RadioPlaybackService.kt# Media3 MediaSessionService para ExoPlayer
-├── ui/                        # Capa de Presentación (Compose & ViewModel)
-│   ├── components/            # Componentes reutilizables (Dialogs, Tabs, Cards)
-│   ├── theme/                 # Paleta de colores, fuentes, formas M3
-│   ├── RadioViewModel.kt      # ViewModel principal de la aplicación
-│   └── RadioApp.kt            # Contenedor raíz UI y navegación
-└── MainActivity.kt            # Entrypoint de Android & Edge-to-Edge Setup
-```
-
----
-
-## 🚀 Compilación y Ejecución
-
-### Requisitos Previos
-- **Android Studio**: Ladybug / Koala o superior.
-- **JDK**: Java 17 o Java 21.
-- **Android SDK**: `compileSdk = 35`, `minSdk = 24`.
-
-### Pasos de Instalación
-1. Clona este repositorio:
-   ```bash
-   git clone https://github.com/latanvillegas/Radio-Escucha.git
-   ```
-2. Abre el proyecto en Android Studio.
-3. Sincroniza los archivos de Gradle (`Sync Project with Gradle Files`).
-4. Ejecuta la aplicación en un dispositivo físico o emulador:
-   ```bash
-   ./gradlew assembleDebug
-   ```
-
----
-
-## 🧪 Pruebas y Control de Calidad
-
-El proyecto incluye pruebas unitarias y de captura visual en JVM sin necesidad de emulador físico:
-
-```bash
-# Ejecutar pruebas unitarias de lógica de negocio y ViewModel
-gradle :app:testDebugUnitTest
-
-# Verificar captura de pantalla de componentes UI (Roborazzi)
-gradle :app:verifyRoborazziDebug
-
-# Grabar nuevas capturas de referencia UI
-gradle :app:recordRoborazziDebug
-```
-
----
-
-## 🔒 Privacidad & Permisos
-- `INTERNET`: Requerido para la transmisión de streams de audio HTTP/HTTPS.
-- `FOREGROUND_SERVICE` & `FOREGROUND_SERVICE_MEDIA_PLAYBACK`: Mantiene la reproducción activa cuando la pantalla está apagada o la app está en segundo plano.
-- `POST_NOTIFICATIONS`: Permite mostrar los controles multimedia interactivos en la barra de estado de Android 13+.
-- Nota: la grabación de flujos de radio no requiere permiso de micrófono.
-
----
+Capturas reales en español, tomadas de la aplicación, normalizadas a 768 × 1536 para los metadatos Fastlane.
 
 <p align="center">
-  <b>OpenRadio</b> • Desarrollado con prácticas Staff Engineer de alto rendimiento en Android.
+  <img src="fastlane/metadata/android/es-ES/images/phoneScreenshots/1.jpg" width="155" alt="Inicio y listado de emisoras" />
+  <img src="fastlane/metadata/android/es-ES/images/phoneScreenshots/2.jpg" width="155" alt="Descubrir emisoras RadioBrowser" />
+  <img src="fastlane/metadata/android/es-ES/images/phoneScreenshots/3.jpg" width="155" alt="Reproductor 3D de pantalla completa" />
+  <img src="fastlane/metadata/android/es-ES/images/phoneScreenshots/4.jpg" width="155" alt="Biblioteca de favoritos e historial" />
+  <img src="fastlane/metadata/android/es-ES/images/phoneScreenshots/5.jpg" width="155" alt="Ajustes y temas 3D" />
 </p>
 
----
+## Características verificadas
 
-## Distribución en tiendas
+- **Radio en vivo:** reproducción de URLs de emisoras con Media3/ExoPlayer, incluyendo formatos compatibles como MP3, AAC y HLS; la disponibilidad y los formatos dependen del servidor.
+- **Exploración y búsqueda:** RadioBrowser y otros directorios integrados; filtros por emisora, país y género.
+- **Biblioteca local:** favoritas, historial de reproducción y emisoras personalizadas persistidas con Room.
+- **Segundo plano y controles multimedia:** servicio `MediaLibraryService`, notificaciones de medios, controles externos y estructura de navegación para Android Auto (pendiente de pruebas en todos los vehículos).
+- **Audio:** ecualizador y ajustes DSP en `RadioAudioDspEngine`, además de temporizador de apagado.
+- **Personalización:** seis temas —Cósmico 3D, AMOLED 3D, Medianoche Azul 3D, Ámbar Cálido 3D, Esmeralda 3D y Neón Cyber 3D—, escalado de tipografía e iconos.
+- **Ubicación opcional:** país inicial basado en la configuración regional del dispositivo. La consulta de país por IP se realiza solamente si el usuario la solicita y emplea HTTPS.
 
-OpenRadio se publica mediante versiones firmadas (`vX.Y.Z`) y metadatos Fastlane bilingües. Los APK `app-debug.apk` anteriores son versiones de prueba, no paquetes de producción. **Antes de lanzar la primera versión, configura los secretos de firma y captura imágenes reales de la aplicación.**
+No se anuncian funciones de **grabación de emisoras** ni **alarma despertador**: no están implementadas como características disponibles en la versión actual.
 
-Consulta [la guía completa de distribución](docs/DISTRIBUTION.md) para preparar la clave, las etiquetas y las solicitudes de inclusión en Orion Store, IzzyOnDroid y F-Droid.
+## Instalar OpenRadio
 
-**Licencia:** [MIT](LICENSE) para el código original; las emisoras, logotipos y material externo pertenecen a sus titulares.
+1. Accede a [GitHub Releases](https://github.com/latanvillegas/Radio-Escucha/releases/latest).
+2. Descarga `OpenRadio-vX.Y.Z.apk` (el APK de producción firmado). Puedes contrastar el archivo `.sha256` publicado en el mismo Release.
+3. Instala el APK en Android 7.0 (API 24) o superior. Android puede solicitar que permitas instalaciones desde tu navegador o gestor de archivos.
 
-## Privacidad y distribución libre
+**Actualizaciones:** utiliza los APK Release firmados con la misma clave. Un APK Debug con firma diferente no se actualiza directamente sobre un APK Release; haz una copia de tus datos antes de desinstalar una versión con firma distinta.
 
-Consulta [la política de red y privacidad](docs/PRIVACY.md) y [la auditoría de seguridad y dependencias](docs/SECURITY_PRIVACY_AUDIT.md). Las emisoras HTTP siguen siendo compatibles, pero las APIs de la aplicación utilizan HTTPS. La incorporación a IzzyOnDroid y F-Droid depende de una revisión externa de licencias, dependencias y procedencia del código.
+## Compilar desde el código fuente
+
+**Entorno:** Android SDK con plataforma 35, JDK 17 y Android Studio compatible con Android Gradle Plugin 8.7.3. El proyecto utiliza **Gradle 8.9**.
+
+```bash
+git clone https://github.com/latanvillegas/Radio-Escucha.git
+cd Radio-Escucha
+
+# Linux/macOS: descargar Gradle 8.9 con el Wrapper y compilar.
+./gradlew :app:assembleDebug --no-daemon
+
+# Ejecutar pruebas unitarias JVM/Robolectric.
+./gradlew :app:testDebugUnitTest --no-daemon
+```
+
+En Windows utiliza `gradlew.bat` con los mismos argumentos. El APK de depuración resultante se encuentra en `app/build/outputs/apk/debug/app-debug.apk`.
+
+Para comprobar localmente la variante minificada sin publicar:
+
+```bash
+./gradlew :app:assembleRelease --no-daemon
+```
+
+> **Firma:** la compilación Release de distribución requiere el keystore privado del mantenedor; un `assembleRelease` local sin secretos de firma no sustituye al APK oficial firmado. El workflow de GitHub Actions gestiona la firma sin subir el keystore al repositorio.
+
+## Arquitectura y stack
+
+```text
+app/src/main/java/com/example/
+├── MainActivity.kt              Entrada Android y UI
+├── ui/
+│   ├── RadioApp.kt               Navegación y pantallas Compose
+│   ├── RadioViewModel.kt         Estado de interfaz y casos de uso
+│   ├── SettingsScreen.kt         Opciones de personalización
+│   ├── components/               Componentes visuales reutilizables
+│   └── theme/                    Temas y estilos
+├── data/
+│   ├── RadioRepository.kt        Repositorio de emisoras
+│   ├── RadioBrowserApi.kt        Directorio externo
+│   ├── MultiSourceRadioApi.kt    Proveedores de radio y metadatos
+│   ├── RadioDatabase.kt          Room
+│   ├── PlaybackHistory.kt        Historial local
+│   └── ThemePreferences.kt       Preferencias DataStore
+├── service/
+│   └── PlaybackService.kt        Reproducción Media3/MediaLibraryService
+└── util/
+    ├── StreamFormatHelper.kt     Configuración de streams
+    ├── RadioAudioDspEngine.kt    Ecualización y procesamiento de audio
+    └── LogoImageLoader.kt        Carga de logotipos
+```
+
+Las versiones se declaran en [`gradle/libs.versions.toml`](gradle/libs.versions.toml), que es la fuente de verdad para el stack. Principales versiones del código actual:
+
+| Componente | Versión declarada |
+| --- | --- |
+| Kotlin | `2.0.21` |
+| Android Gradle Plugin | `8.7.3` |
+| Compose BOM | `2024.10.01` |
+| Media3 | `1.3.1` |
+| Room | `2.7.0` |
+| Retrofit | `2.12.0` |
+| OkHttp | `4.10.0` |
+| DataStore Preferences | `1.1.7` |
+| Coil | `2.7.0` |
+| Robolectric / Roborazzi | `4.16.1` / `1.59.0` |
+
+La arquitectura utiliza Compose, `StateFlow`, un ViewModel, un repositorio, persistencia Room/DataStore y un servicio Media3. **No** se presume cumplimiento integral de Clean Architecture ni reproducibilidad binaria sin una evaluación independiente.
+
+## Calidad y CI/CD
+
+[GitHub Actions](.github/workflows/build-apk.yml) ejecuta para las solicitudes de cambio:
+
+- Pruebas unitarias y de regresión.
+- Auditoría automatizada de `releaseRuntimeClasspath` contra familias conocidas de SDK propietarios, junto con comprobaciones de política de red.
+- Compilaciones Debug y Release con optimización R8.
+
+Los lanzamientos `vMAJOR.MINOR.PATCH` generan un APK de producción firmado, verifican la firma con `apksigner` y publican un archivo SHA-256. **Una auditoría automática aprobada no acredita por sí sola todas las licencias de dependencias ni la reproducibilidad de la compilación.**
+
+## Privacidad y seguridad
+
+- El país inicial se obtiene localmente de la configuración regional. La detección por IP es **opcional** y se realiza por HTTPS.
+- Las API configuradas y las rutas auxiliares de imágenes usan HTTPS; los logotipos sin HTTPS pueden sustituirse por un marcador.
+- Algunos streams de terceros solo ofrecen HTTP. Por compatibilidad, el reproductor permite conexiones HTTP de emisoras arbitrarias. **La aplicación no es 100 % HTTPS.**
+- Consultar directorios, carátulas y emisoras externas implica conexiones a servidores de terceros que pueden observar la IP y metadatos de solicitud.
+
+Lee [la política de privacidad y red](docs/PRIVACY.md) y [la auditoría técnica y sus limitaciones](docs/SECURITY_PRIVACY_AUDIT.md).
+
+## Distribución
+
+| Canal | Situación |
+| --- | --- |
+| [GitHub Releases](https://github.com/latanvillegas/Radio-Escucha/releases/latest) | APK firmados disponibles |
+| [Orion Store](https://github.com/RookieEnough/Orion-Data/issues/3187) | Solicitud de inclusión `#3187`, pendiente de aceptación |
+| [IzzyOnDroid](https://codeberg.org/IzzyOnDroid/repodata/issues/930) | Solicitud de inclusión `#930`, pendiente de aceptación |
+| F-Droid | No incorporado; requiere evaluación de dependencias, licencias y procedimiento de construcción |
+
+Los metadatos para las tiendas se encuentran en [`fastlane/metadata/android/`](fastlane/metadata/android/). También puedes seguir los Releases con [Obtainium](https://github.com/ImranR98/Obtainium), usando la URL de este repositorio.
+
+Documentación complementaria: [Distribución y firma](docs/DISTRIBUTION.md) · [Recursos para las tiendas](docs/STORE_ASSETS_AND_RELEASE.md) · [Auditoría y privacidad](docs/SECURITY_PRIVACY_AUDIT.md).
+
+## Contribuir y licencia
+
+Se aceptan incidencias y contribuciones mediante [Issues](https://github.com/latanvillegas/Radio-Escucha/issues) y Pull Requests. Antes de proponer cambios, revisa las pruebas, los efectos sobre emisoras HTTP y las limitaciones documentadas para las tiendas.
+
+El **código original** del proyecto se distribuye bajo [licencia MIT](LICENSE). Los logotipos de emisoras, nombres comerciales, emisiones y otros recursos de terceros conservan sus respectivas titularidades y condiciones.
+
